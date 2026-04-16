@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { PlusIcon, SearchIcon } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
+import { mapRecetteAny } from '@/lib/mappers'
 import type { FiltresRecettes, Recette } from '@/types'
 import { FILTRES_DEFAUT } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -97,7 +98,7 @@ export default function PageListe() {
 
     const from = (page - 1) * PER_PAGE
     const { data, count } = await query.range(from, from + PER_PAGE - 1)
-    setRecettes((data as Recette[]) ?? [])
+    setRecettes((data ?? []).map(mapRecetteAny) as Recette[])
     setTotal(count ?? 0)
     setLoading(false)
   }

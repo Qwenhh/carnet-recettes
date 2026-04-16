@@ -3,7 +3,8 @@ import Link from 'next/link'
 import { ClockIcon, UsersIcon, PencilIcon, ArrowLeftIcon } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
-import type { Recette, Saison } from '@/types'
+import { mapRecetteAny } from '@/lib/mappers'
+import type { Saison } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -38,7 +39,7 @@ export default async function PageDetail({
     .single()
 
   if (error || !data) notFound()
-  const recette = data as Recette
+  const recette = mapRecetteAny(data)
 
   const tempsPrep = formatTemps(recette.temps_preparation, 'Préparation')
   const tempsCuis = formatTemps(recette.temps_cuisson, 'Cuisson')

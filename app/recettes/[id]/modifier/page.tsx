@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { ArrowLeftIcon } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
-import type { Recette } from '@/types'
+import { mapRecetteAny } from '@/lib/mappers'
 import { Button } from '@/components/ui/button'
 import { RecetteForm } from '@/components/recettes/RecetteForm'
 
@@ -31,7 +31,7 @@ export default async function PageModifierRecette({
         </Button>
         <h1 className="text-2xl font-semibold">Modifier la recette</h1>
       </div>
-      <RecetteForm recette={data as Recette} />
+      <RecetteForm recette={mapRecetteAny(data)} />
     </div>
   )
 }
