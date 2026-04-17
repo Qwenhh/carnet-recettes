@@ -44,7 +44,14 @@ interface ResultatImport {
 
 // ─── Format de prompt pour Claude Cowork ──────────────────────────────────
 
-const PROMPT_COWORK = `Analyse cette photo de recette et extrait les informations dans ce format JSON exact :
+const PROMPT_COWORK = `Tu vas analyser une ou plusieurs photos de recettes de cuisine.
+
+RÈGLES IMPORTANTES :
+- Une image peut contenir PLUSIEURS recettes : extrait-les toutes
+- Une recette peut s'étaler sur PLUSIEURS images : regroupe-les en un seul objet
+- Si tu reçois plusieurs images, analyse l'ensemble et produis un seul tableau JSON
+
+Retourne UNIQUEMENT un tableau JSON valide (même pour une seule recette), sans aucun texte autour :
 
 [
   {
@@ -59,7 +66,7 @@ const PROMPT_COWORK = `Analyse cette photo de recette et extrait les information
     "saisons": ["Printemps", "Été"],
     "contraintes_alimentaires": [],
     "etapes": [
-      "Première étape de préparation.",
+      "Première étape.",
       "Deuxième étape."
     ],
     "ingredients": [
@@ -69,17 +76,31 @@ const PROMPT_COWORK = `Analyse cette photo de recette et extrait les information
   }
 ]
 
-Règles :
-- temps en minutes (entiers)
+Contraintes :
+- temps : entiers en minutes
 - saisons : uniquement parmi Printemps, Été, Automne, Hiver
-- si une info est inconnue, omets le champ
-- retourne uniquement le JSON, sans texte autour`
+- allergenes possibles : Gluten, Crustacés, Œufs, Poissons, Arachides, Soja, Lait, Fruits à coque, Céleri, Moutarde, Graines de sésame, Anhydride sulfureux et sulfites, Lupin, Mollusques
+- si une info est illisible ou inconnue, omets le champ
+- ne jamais inventer des informations absentes`
+
+const PROMPT_FUSION = `Ces images montrent différentes parties d'UNE MÊME recette (suite de la recette précédente, ou recto/verso).
+
+Combine toutes les informations visibles et retourne UN SEUL objet JSON dans un tableau :
+
+[
+  {
+    "titre": "Nom de la recette",
+    ...
+  }
+]
+
+Même format et mêmes contraintes que pour une recette normale. Retourne uniquement le JSON.`
 
 export default function PageImport() {
   const [json, setJson] = React.useState('')
   const [resultats, setResultats] = React.useState<ResultatImport[]>([])
   const [importEnCours, setImportEnCours] = React.useState(false)
-  const [afficherPrompt, setAfficherPrompt] = React.useState(false)
+  const [promptActif, setPromptActif] = React.useState<'standard' | 'fusion' | null>(null)
 
   function validerJson(): RecetteImport[] | null {
     try {
@@ -187,43 +208,88 @@ export default function PageImport() {
       </p>
 
       {/* Aide */}
-      <section className="mb-6 rounded-xl border border-border bg-card p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="mb-1 flex items-center gap-2">
-              <FileJsonIcon className="size-4 text-primary" />
-              <span className="font-medium text-sm">Comment utiliser ?</span>
-            </div>
-            <ol className="ml-5 list-decimal space-y-1 text-sm text-muted-foreground">
-              <li>Photographiez votre recette papier</li>
-              <li>Envoyez la photo à Claude dans Cowork avec le prompt ci-dessous</li>
-              <li>Copiez le JSON retourné ici et cliquez sur Importer</li>
-            </ol>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAfficherPrompt((v) => !v)}
-            className="shrink-0"
-          >
-            {afficherPrompt ? 'Masquer' : 'Voir le prompt'}
-          </Button>
-        </div>
+      <section className="mb-6 space-y-3">
 
-        {afficherPrompt && (
-          <div className="mt-4 rounded-lg bg-muted p-3">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">Prompt à copier dans Claude Cowork :</p>
-            <pre className="whitespace-pre-wrap text-xs text-foreground">{PROMPT_COWORK}</pre>
+        {/* Cas 1 : standard */}
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="mb-1 flex items-center gap-2">
+                <FileJsonIcon className="size-4 text-primary" />
+                <span className="font-medium text-sm">Cas standard</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                1+ images avec 1+ recettes chacune → Claude extrait tout en un seul JSON.
+              </p>
+              <ul className="ml-4 mt-1 list-disc space-y-0.5 text-xs text-muted-foreground">
+                <li>Envoyez toutes les images en une seule fois à Claude dans Cowork</li>
+                <li>Collez ce prompt, puis copiez le JSON retourné ci-dessous</li>
+              </ul>
+            </div>
             <Button
-              size="sm"
               variant="outline"
-              className="mt-2"
-              onClick={() => { navigator.clipboard.writeText(PROMPT_COWORK); toast.success('Prompt copié !') }}
+              size="sm"
+              onClick={() => setPromptActif(promptActif === 'standard' ? null : 'standard')}
+              className="shrink-0"
             >
-              Copier le prompt
+              {promptActif === 'standard' ? 'Masquer' : 'Voir le prompt'}
             </Button>
           </div>
-        )}
+          {promptActif === 'standard' && (
+            <div className="mt-4 rounded-lg bg-muted p-3">
+              <pre className="whitespace-pre-wrap text-xs text-foreground">{PROMPT_COWORK}</pre>
+              <Button
+                size="sm" variant="outline" className="mt-2"
+                onClick={() => { navigator.clipboard.writeText(PROMPT_COWORK); toast.success('Prompt copié !') }}
+              >
+                Copier
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Cas 2 : recette sur 2 images */}
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="mb-1 flex items-center gap-2">
+                <FileJsonIcon className="size-4 text-primary" />
+                <span className="font-medium text-sm">Recette sur plusieurs images</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Une recette est répartie sur 2 images ou plus (recto/verso, suite…).
+              </p>
+              <ul className="ml-4 mt-1 list-disc space-y-0.5 text-xs text-muted-foreground">
+                <li>Envoyez les images de cette recette à Claude dans Cowork</li>
+                <li>Collez ce prompt (dit à Claude de fusionner en une seule recette)</li>
+              </ul>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPromptActif(promptActif === 'fusion' ? null : 'fusion')}
+              className="shrink-0"
+            >
+              {promptActif === 'fusion' ? 'Masquer' : 'Voir le prompt'}
+            </Button>
+          </div>
+          {promptActif === 'fusion' && (
+            <div className="mt-4 rounded-lg bg-muted p-3">
+              <pre className="whitespace-pre-wrap text-xs text-foreground">{PROMPT_FUSION}</pre>
+              <Button
+                size="sm" variant="outline" className="mt-2"
+                onClick={() => { navigator.clipboard.writeText(PROMPT_FUSION); toast.success('Prompt copié !') }}
+              >
+                Copier
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Rappel workflow */}
+        <p className="text-xs text-muted-foreground px-1">
+          💡 <strong>Conseil :</strong> pour un lot de 20 photos, envoyez-les toutes d'un coup — Claude identifie et sépare chaque recette automatiquement.
+        </p>
       </section>
 
       {/* Zone JSON */}
