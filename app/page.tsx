@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { PlusIcon, SearchIcon } from 'lucide-react'
+import { PlusIcon, SearchIcon, ArrowUpDownIcon } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
 import { mapRecetteAny } from '@/lib/mappers'
@@ -23,6 +23,14 @@ type Options = {
   familles: string[]
 }
 
+type Tri = 'recent' | 'ancien' | 'alpha'
+
+const TRIS: { value: Tri; label: string }[] = [
+  { value: 'recent', label: 'Plus récent' },
+  { value: 'ancien', label: 'Plus ancien' },
+  { value: 'alpha',  label: 'A → Z' },
+]
+
 function CardSkeleton() {
   return <div className="h-48 animate-pulse rounded-xl border border-border bg-muted" />
 }
@@ -42,6 +50,7 @@ export default function PageListe() {
   const [page, setPage] = React.useState(1)
   const [loading, setLoading] = React.useState(true)
   const [recherche, setRecherche] = React.useState('')
+  const [tri, setTri] = React.useState<Tri>('recent')
   const [filtres, setFiltres] = React.useState<FiltresRecettes>(FILTRES_DEFAUT)
   const [options, setOptions] = React.useState<Options>({
     types_plat: [],
@@ -51,7 +60,6 @@ export default function PageListe() {
     familles: [],
   })
 
-  // Charger les listes de référence une seule fois
   React.useEffect(() => {
     async function chargerOptions() {
       const { data } = await supabase
@@ -74,16 +82,21 @@ export default function PageListe() {
 
   const filtresDebounced = useDebounce(filtres, 300)
 
-  React.useEffect(() => { setPage(1) }, [filtresDebounced, recherche])
-  React.useEffect(() => { fetchRecettes() }, [filtresDebounced, page]) // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { setPage(1) }, [filtresDebounced, recherche, tri])
+  React.useEffect(() => { fetchRecettes() }, [filtresDebounced, page, tri]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchRecettes() {
     setLoading(true)
     let query = supabase
       .from('recettes')
       .select('*, recette_ingredients(quantite, unite, ingredients(id, nom, famille, saisons, allergenes))', { count: 'exact' })
-      .order('titre')
 
+    // Tri
+    if (tri === 'recent') query = query.order('created_at', { ascending: false })
+    else if (tri === 'ancien') query = query.order('created_at', { ascending: true })
+    else query = query.order('titre', { ascending: true })
+
+    // Filtres
     if (filtresDebounced.saisons.length) query = query.overlaps('saisons', filtresDebounced.saisons)
     if (filtresDebounced.types_plat.length) query = query.overlaps('types_plat', filtresDebounced.types_plat)
     if (filtresDebounced.techniques.length) query = query.overlaps('techniques', filtresDebounced.techniques)
@@ -120,15 +133,31 @@ export default function PageListe() {
         </Button>
       </div>
 
-      {/* Recherche */}
-      <div className="relative">
-        <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Rechercher une recette…"
-          value={recherche}
-          onChange={(e) => setRecherche(e.target.value)}
-          className="pl-9"
-        />
+      {/* Recherche + Tri */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher une recette…"
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        {/* Sélecteur de tri */}
+        <div className="relative">
+          <select
+            value={tri}
+            onChange={(e) => setTri(e.target.value as Tri)}
+            className="h-8 appearance-none rounded-lg border border-input bg-background pl-8 pr-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+          >
+            {TRIS.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+          <ArrowUpDownIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        </div>
       </div>
 
       {/* Layout */}
