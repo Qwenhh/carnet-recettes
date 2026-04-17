@@ -89,7 +89,7 @@ export default function PageListe() {
     setLoading(true)
     let query = supabase
       .from('recettes')
-      .select('*, recette_ingredients(quantite, unite, ingredients(id, nom, famille, saisons, allergenes))', { count: 'exact' })
+      .select('*, recette_ingredients(quantite, unite, groupe, ordre, ingredients(id, nom, famille, saisons, allergenes))', { count: 'exact' })
 
     // Tri
     if (tri === 'recent') query = query.order('created_at', { ascending: false })

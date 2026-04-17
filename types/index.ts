@@ -12,12 +12,22 @@ export interface RecetteIngredient {
   ingredient: Ingredient
   quantite: string
   unite: string
+  groupe: string  // '' = section par défaut (pas de titre)
+}
+
+export interface EtapeSection {
+  nom: string     // '' = section principale (pas de titre affiché)
+  etapes: string[]
 }
 
 export interface Recette {
   id: string
   titre: string
   descriptif: string | null
+  declinaisons: string | null
+  materiel: string | null       // équipements nécessaires
+  conservation: string | null   // durée et mode de conservation
+  conseils: string | null       // conseil du chef, concept, objectifs pédagogiques
   nb_personnes: number | null
   temps_preparation: number | null
   temps_cuisson: number | null
@@ -27,7 +37,8 @@ export interface Recette {
   saisons: Saison[]
   contraintes_alimentaires: string[]
   allergenes: string[]
-  etapes: string[]
+  etapes: string[]                  // tableau plat conservé pour compat
+  etapes_sections: EtapeSection[]   // sections de préparation (calculé)
   ingredients: RecetteIngredient[]
   created_at: string
   updated_at: string

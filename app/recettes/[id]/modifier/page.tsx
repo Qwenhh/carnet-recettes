@@ -16,7 +16,7 @@ export default async function PageModifierRecette({
 
   const { data, error } = await supabase
     .from('recettes')
-    .select('*, recette_ingredients(quantite, unite, ingredients(id, nom, famille, saisons, allergenes))')
+    .select('*, recette_ingredients(quantite, unite, groupe, ordre, ingredients(id, nom, famille, saisons, allergenes))')
     .eq('id', id)
     .single()
 

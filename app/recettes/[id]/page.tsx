@@ -34,7 +34,7 @@ export default async function PageDetail({
 
   const { data, error } = await supabase
     .from('recettes')
-    .select('*, recette_ingredients(quantite, unite, ingredients(id, nom, famille, saisons, allergenes))')
+    .select('*, recette_ingredients(quantite, unite, groupe, ordre, ingredients(id, nom, famille, saisons, allergenes))')
     .eq('id', id)
     .single()
 
@@ -44,6 +44,20 @@ export default async function PageDetail({
   const tempsPrep = formatTemps(recette.temps_preparation, 'Préparation')
   const tempsCuis = formatTemps(recette.temps_cuisson, 'Cuisson')
   const tempsRep = formatTemps(recette.temps_repos, 'Repos')
+
+  // Grouper les ingrédients par section
+  type GroupeIngr = { nom: string; items: typeof recette.ingredients }
+  const groupesIngredients: GroupeIngr[] = []
+  const seenGroupes = new Map<string, GroupeIngr>()
+  for (const ri of recette.ingredients) {
+    const g = ri.groupe ?? ''
+    if (!seenGroupes.has(g)) {
+      const grp: GroupeIngr = { nom: g, items: [] }
+      groupesIngredients.push(grp)
+      seenGroupes.set(g, grp)
+    }
+    seenGroupes.get(g)!.items.push(ri)
+  }
 
   return (
     <article className="mx-auto max-w-3xl">
@@ -98,48 +112,98 @@ export default async function PageDetail({
 
       {/* Descriptif */}
       {recette.descriptif && (
-        <>
-          <p className="mb-6 text-base leading-relaxed text-foreground/80">{recette.descriptif}</p>
-          <Separator className="mb-6" />
-        </>
+        <p className="mb-4 text-base leading-relaxed text-foreground/80">{recette.descriptif}</p>
+      )}
+
+      {/* Conseils & concept */}
+      {recette.conseils && (
+        <div className="mb-4 rounded-lg border border-border bg-secondary/40 px-4 py-3">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conseils &amp; concept</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{recette.conseils}</p>
+        </div>
+      )}
+
+      {/* Matériel + Conservation sur une ligne */}
+      {(recette.materiel || recette.conservation) && (
+        <div className="mb-4 flex flex-wrap gap-4">
+          {recette.materiel && (
+            <div className="flex-1 rounded-lg border border-border bg-muted/50 px-4 py-3 min-w-[200px]">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Matériel</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{recette.materiel}</p>
+            </div>
+          )}
+          {recette.conservation && (
+            <div className="rounded-lg border border-border bg-muted/50 px-4 py-3">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conservation</p>
+              <p className="text-sm leading-relaxed">{recette.conservation}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(recette.descriptif || recette.conseils || recette.materiel || recette.conservation) && (
+        <Separator className="mb-6" />
       )}
 
       <div className="grid gap-8 md:grid-cols-[1fr_2fr]">
-        {/* Ingrédients */}
+
+        {/* ── Ingrédients ── */}
         <section>
           <h2 className="mb-4 text-lg font-semibold">Ingrédients</h2>
           {recette.ingredients.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucun ingrédient renseigné.</p>
           ) : (
-            <ul className="space-y-2">
-              {recette.ingredients.map(({ ingredient, quantite, unite }) => (
-                <li key={ingredient.id} className="flex items-baseline gap-2 text-sm">
-                  <span className="font-medium text-primary">
-                    {quantite} {unite}
-                  </span>
-                  <span>{ingredient.nom}</span>
-                </li>
+            <div className="space-y-4">
+              {groupesIngredients.map(({ nom, items }, gi) => (
+                <div key={gi}>
+                  {nom && (
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {nom}
+                    </p>
+                  )}
+                  <ul className="space-y-2">
+                    {items.map(({ ingredient, quantite, unite }) => (
+                      <li key={ingredient.id} className="flex items-baseline gap-2 text-sm">
+                        <span className="font-medium text-primary">
+                          {quantite} {unite}
+                        </span>
+                        <span>{ingredient.nom}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </section>
 
-        {/* Étapes */}
+        {/* ── Préparation ── */}
         <section>
           <h2 className="mb-4 text-lg font-semibold">Préparation</h2>
-          {recette.etapes.length === 0 ? (
+          {recette.etapes_sections.every((s) => s.etapes.length === 0) ? (
             <p className="text-sm text-muted-foreground">Aucune étape renseignée.</p>
           ) : (
-            <ol className="space-y-4">
-              {recette.etapes.map((etape, i) => (
-                <li key={i} className="flex gap-4">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                    {i + 1}
-                  </span>
-                  <p className="text-sm leading-relaxed">{etape}</p>
-                </li>
+            <div className="space-y-6">
+              {recette.etapes_sections.map((section, si) => (
+                <div key={si}>
+                  {section.nom && (
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {section.nom}
+                    </p>
+                  )}
+                  <ol className="space-y-4">
+                    {section.etapes.map((etape, ei) => (
+                      <li key={ei} className="flex gap-4">
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                          {ei + 1}
+                        </span>
+                        <p className="text-sm leading-relaxed">{etape}</p>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
               ))}
-            </ol>
+            </div>
           )}
         </section>
       </div>
@@ -170,6 +234,19 @@ export default async function PageDetail({
               </div>
             )}
           </div>
+        </>
+      )}
+
+      {/* Déclinaisons */}
+      {recette.declinaisons && (
+        <>
+          <Separator className="my-6" />
+          <section>
+            <h2 className="mb-3 text-lg font-semibold">Déclinaisons &amp; alternatives</h2>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
+              {recette.declinaisons}
+            </p>
+          </section>
         </>
       )}
     </article>
