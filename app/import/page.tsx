@@ -9,9 +9,30 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 
+// ─── Types ────────────────────────────────────────────────────────────────
+
+interface IngredientImport {
+  nom: string
+  quantite?: string
+  unite?: string
+  groupe?: string   // nom de la section (ex: "Émulsion", "Maki de poireau")
+  famille?: string
+  saisons?: string[]
+  allergenes?: string[]
+}
+
+interface EtapeSectionImport {
+  nom: string       // ex: "Mise en oeuvre", "Dressage", "Sauce" — '' si section principale
+  etapes: string[]
+}
+
 interface RecetteImport {
   titre: string
   descriptif?: string
+  declinaisons?: string
+  materiel?: string
+  conservation?: string
+  conseils?: string
   nb_personnes?: number
   temps_preparation?: number
   temps_cuisson?: number
@@ -20,63 +41,106 @@ interface RecetteImport {
   techniques?: string[]
   saisons?: string[]
   contraintes_alimentaires?: string[]
-  etapes?: string[]
-  ingredients?: {
-    nom: string
-    quantite?: string
-    unite?: string
-    famille?: string
-    saisons?: string[]
-    allergenes?: string[]
-  }[]
+  etapes_sections?: EtapeSectionImport[]
+  etapes?: string[]  // fallback si pas de sections
+  ingredients?: IngredientImport[]
 }
 
 type EtatLigne = 'attente' | 'en_cours' | 'ok' | 'erreur'
 interface ResultatImport { titre: string; etat: EtatLigne; message?: string }
 
-// ─── Prompt unique — gère tous les cas ────────────────────────────────────
+// ─── Prompt ───────────────────────────────────────────────────────────────
 
-const PROMPT = `Tu vas analyser un lot de photos de recettes de cuisine professionnelles.
+const PROMPT = `Tu vas analyser un lot de photos de fiches recettes de cuisine professionnelles.
 
-Les photos sont dans l'ORDRE : si une recette occupe plusieurs pages consécutives, les images se suivront naturellement. Tu dois reconstituer chaque recette complète.
+Les photos sont dans l'ORDRE : si une recette occupe plusieurs pages consécutives, les images se suivront naturellement.
 
-RÈGLES :
-- Si une image contient plusieurs recettes distinctes (titre différent), extrait-les séparément
-- Si plusieurs images consécutives correspondent à la même recette (suite des ingrédients, suite des étapes, recto/verso), regroupe-les en UN SEUL objet
-- Pour identifier une nouvelle recette : cherche un nouveau titre en haut de page, une ligne de séparation, ou un changement de style d'écriture
-- Pour identifier une suite : pas de titre, début en milieu de liste ou en milieu de phrase, mention "suite", numérotation qui continue
+RÈGLES DE DÉCOUPAGE :
+- Nouvelle recette = nouveau titre en haut de page, séparateur visuel, changement de style
+- Suite de recette = pas de titre, liste ou phrase qui continue, numérotation qui continue
+- Plusieurs recettes sur une image = extrait-les séparément
+
+CHAMPS À EXTRAIRE (tous optionnels sauf titre) :
+- titre : nom de la recette
+- descriptif : description courte si présente
+- conseils : tout ce qui relève du "conseil du chef", "concept", "techniques/objectifs", notes pédagogiques — concaténer en un seul bloc de texte
+- materiel : liste du matériel nécessaire (texte libre)
+- conservation : durée et mode de conservation
+- declinaisons : variantes, alternatives, substitutions d'ingrédients, propositions de déclinaisons
+- nb_personnes : entier
+- temps_preparation, temps_cuisson, temps_repos : entiers en minutes
+- types_plat : tableau parmi → Entrée, Plat, Dessert, Snack, Sauce, Base, Boisson
+- techniques : tableau de techniques utilisées (ex: ["Cuisson vapeur", "Émulsion"])
+- saisons : tableau parmi → Printemps, Été, Automne, Hiver
+- contraintes_alimentaires : tableau (ex: ["Vegan", "Sans gluten", "Sans lactose"])
+
+INGRÉDIENTS — utilise "groupe" pour les sections (ex: "Maki de poireau", "Émulsion", "Mimosa") :
+- si la recette n'a qu'une liste, laisse groupe vide ou omets-le
+- si plusieurs sections, indique le nom de la section dans "groupe"
+- allergenes : uniquement parmi → Gluten, Crustacés, Œufs, Poissons, Arachides, Soja, Lait, Fruits à coque, Céleri, Moutarde, Graines de sésame, Anhydride sulfureux et sulfites, Lupin, Mollusques
+
+PRÉPARATION — utilise "etapes_sections" pour les sections :
+- nom de section : "Mise en oeuvre", "Dressage", "Topping", "Sauce", "Émulsion", ou tout autre titre présent
+- si une seule section sans titre, utilise nom: ""
+- les étapes sont numérotées par section (recommencer à 1 à chaque nouvelle section)
+- inclure le dressage, les toppings et la finition dans leur propre section si c'est indiqué séparément
 
 Retourne UNIQUEMENT un tableau JSON valide, sans texte autour, sans markdown :
 
 [
   {
-    "titre": "Nom de la recette",
-    "descriptif": "Description courte (optionnel)",
+    "titre": "Maki de poireau, mimosa de tofu, sauce verte",
+    "descriptif": "Recette froide façon maki avec poireau vapeur et tofu émulsionné",
+    "conseils": "Cuisson vapeur / pochage / façonnage. Banane remplace en partie les œufs. Attention à ne pas trop écraser.",
+    "materiel": "Vitaliseur, mixeur plongeant, verre doseur à bord haut, poche pâtissière",
+    "conservation": "3 jours au frais",
+    "declinaisons": "Au printemps, remplacer les poireaux par des asperges blanches. Miso à la place de la moutarde.",
     "nb_personnes": 4,
-    "temps_preparation": 30,
+    "temps_preparation": 50,
     "temps_cuisson": 20,
-    "temps_repos": 0,
+    "temps_repos": 30,
     "types_plat": ["Entrée"],
-    "techniques": ["Snacké", "Braisé"],
-    "saisons": ["Printemps", "Été"],
-    "contraintes_alimentaires": [],
-    "etapes": [
-      "Première étape.",
-      "Deuxième étape."
-    ],
+    "techniques": ["Cuisson vapeur", "Émulsion", "Façonnage"],
+    "saisons": ["Automne", "Hiver"],
+    "contraintes_alimentaires": ["Vegan"],
     "ingredients": [
-      { "nom": "Beurre", "quantite": "50", "unite": "g", "famille": "Matière grasse", "allergenes": ["Lait"] },
-      { "nom": "Farine", "quantite": "200", "unite": "g", "famille": "Féculent", "allergenes": ["Gluten"] }
+      { "nom": "Poireau", "quantite": "1", "unite": "pièce", "groupe": "Maki de poireau" },
+      { "nom": "Feuille d'algue nori", "quantite": "0.5", "unite": "feuille", "groupe": "Maki de poireau" },
+      { "nom": "Lait de soja", "quantite": "75", "unite": "g", "groupe": "Émulsion", "allergenes": ["Soja"] },
+      { "nom": "Moutarde", "quantite": "1.5", "unite": "càs", "groupe": "Émulsion", "allergenes": ["Moutarde"] },
+      { "nom": "Tofu ferme", "quantite": "75", "unite": "g", "groupe": "Mimosa", "allergenes": ["Soja"] }
+    ],
+    "etapes_sections": [
+      {
+        "nom": "Maki de poireau",
+        "etapes": [
+          "Nettoyer et parer les poireaux.",
+          "Cuire les poireaux à la vapeur 10 à 15 minutes puis laisser refroidir.",
+          "Rouler chaque poireau dans une feuille d'algues nori et envelopper dans du film alimentaire.",
+          "Réserver au froid."
+        ]
+      },
+      {
+        "nom": "Émulsion",
+        "etapes": [
+          "Dans un verre doseur, ajouter tous les ingrédients dans l'ordre puis émulsionner au mixer plongeant sans trop incorporer d'air.",
+          "Réserver au froid dans une poche munie d'une petite douille ronde."
+        ]
+      },
+      {
+        "nom": "Dressage",
+        "etapes": [
+          "Trancher le maki de poireau et dresser sur l'assiette.",
+          "Pocher l'émulsion et parsemer le mimosa de tofu."
+        ]
+      }
     ]
   }
 ]
 
-Contraintes strictes :
-- temps : entiers en minutes uniquement
-- saisons : uniquement parmi → Printemps, Été, Automne, Hiver
-- allergènes : uniquement parmi → Gluten, Crustacés, Œufs, Poissons, Arachides, Soja, Lait, Fruits à coque, Céleri, Moutarde, Graines de sésame, Anhydride sulfureux et sulfites, Lupin, Mollusques
-- si une information est illisible ou absente, omets le champ (ne pas inventer)
-- retourner uniquement du JSON brut, aucun texte avant ou après`
+Si une information est illisible ou absente, omets le champ. Ne pas inventer.`
+
+// ─── Composant principal ───────────────────────────────────────────────────
 
 export default function PageImport() {
   const [json, setJson] = React.useState('')
@@ -106,11 +170,30 @@ export default function PageImport() {
       setResultats((prev) => prev.map((r, idx) => idx === i ? { ...r, etat: 'en_cours' } : r))
 
       try {
+        // ── Construire etapes_sections + etapes plat ──
+        let etapes_sections: EtapeSectionImport[] = []
+        if (rec.etapes_sections?.length) {
+          etapes_sections = rec.etapes_sections
+        } else if (rec.etapes?.length) {
+          etapes_sections = [{ nom: '', etapes: rec.etapes }]
+        }
+        const etapes_flat = etapes_sections.flatMap((s) => s.etapes)
+
+        // ── Déduire les allergènes depuis les ingrédients ──
+        const allergenes = Array.from(new Set(
+          rec.ingredients?.flatMap((i) => i.allergenes ?? []) ?? []
+        ))
+
+        // ── Insérer la recette ──
         const { data: recetteData, error: errRecette } = await supabase
           .from('recettes')
           .insert({
             titre: rec.titre || 'Sans titre',
             descriptif: rec.descriptif ?? null,
+            declinaisons: rec.declinaisons ?? null,
+            materiel: rec.materiel ?? null,
+            conservation: rec.conservation ?? null,
+            conseils: rec.conseils ?? null,
             nb_personnes: rec.nb_personnes ?? null,
             temps_preparation: rec.temps_preparation ?? null,
             temps_cuisson: rec.temps_cuisson ?? null,
@@ -119,24 +202,38 @@ export default function PageImport() {
             techniques: rec.techniques ?? [],
             saisons: rec.saisons ?? [],
             contraintes_alimentaires: rec.contraintes_alimentaires ?? [],
-            allergenes: Array.from(new Set(rec.ingredients?.flatMap((i) => i.allergenes ?? []) ?? [])),
-            etapes: rec.etapes ?? [],
+            allergenes,
+            etapes: etapes_flat,
+            etapes_sections: etapes_sections.length > 0 ? etapes_sections : null,
           })
           .select()
           .single()
 
         if (errRecette || !recetteData) throw new Error(errRecette?.message || 'Erreur création recette')
 
+        // ── Insérer les ingrédients avec groupe et ordre ──
         if (rec.ingredients?.length) {
-          for (const ing of rec.ingredients) {
+          for (let ii = 0; ii < rec.ingredients.length; ii++) {
+            const ing = rec.ingredients[ii]
             const { data: ingrData, error: errIngr } = await supabase
               .from('ingredients')
-              .upsert({ nom: ing.nom, famille: ing.famille ?? null, saisons: ing.saisons ?? [], allergenes: ing.allergenes ?? [] }, { onConflict: 'nom' })
+              .upsert(
+                { nom: ing.nom, famille: ing.famille ?? null, saisons: ing.saisons ?? [], allergenes: ing.allergenes ?? [] },
+                { onConflict: 'nom' }
+              )
               .select()
               .single()
             if (errIngr || !ingrData) continue
+
             await supabase.from('recette_ingredients').upsert(
-              { recette_id: recetteData.id, ingredient_id: ingrData.id, quantite: ing.quantite ?? '', unite: ing.unite ?? '' },
+              {
+                recette_id: recetteData.id,
+                ingredient_id: ingrData.id,
+                quantite: ing.quantite ?? '',
+                unite: ing.unite ?? '',
+                groupe: ing.groupe?.trim() || null,
+                ordre: ii,
+              },
               { onConflict: 'recette_id,ingredient_id' }
             )
           }
@@ -179,12 +276,12 @@ export default function PageImport() {
             {
               n: '2',
               titre: 'Envoyez par lots de 20–30 photos à Claude',
-              detail: 'Claude ne peut pas traiter 197 images en une fois. Faites 7–10 sessions de ~25 photos. Glissez-déposez les images directement dans Cowork.',
+              detail: 'Claude ne peut pas traiter 197 images en une fois. Faites 7–10 sessions de ~25 photos. Glissez-déposez les images directement dans claude.ai.',
             },
             {
               n: '3',
-              titre: 'Collez le prompt ci-dessous',
-              detail: 'Un seul prompt gère tous les cas : recettes sur 1 page, sur 2 pages, ou plusieurs recettes par page.',
+              titre: 'Collez le prompt ci-dessous + vos photos',
+              detail: 'Un seul prompt gère tous les cas : recettes sur 1 page, sur 2 pages, plusieurs recettes par page, sections d\'ingrédients, dressage…',
             },
             {
               n: '4',
@@ -211,7 +308,7 @@ export default function PageImport() {
             onClick={() => setPromptOuvert((v) => !v)}
             className="flex w-full items-center justify-between text-sm font-medium hover:text-primary"
           >
-            <span>Voir le prompt à coller dans Cowork</span>
+            <span>Voir le prompt à coller dans Claude</span>
             <ChevronDownIcon className={`size-4 transition-transform ${promptOuvert ? 'rotate-180' : ''}`} />
           </button>
           {promptOuvert && (
