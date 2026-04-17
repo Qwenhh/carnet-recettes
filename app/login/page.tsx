@@ -27,8 +27,7 @@ export default function PageLogin() {
     })
 
     if (res.ok) {
-      router.push('/')
-      router.refresh()
+      window.location.href = '/'
     } else {
       setErreur('Code d\'accès incorrect.')
       setLoading(false)
