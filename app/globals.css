@@ -48,55 +48,55 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* ─── Palette chaude et naturelle (inspirée ayuryogabyleah.fr) ─── */
+/* ─── Palette ayuryogabyleah.fr : crème / vert sauge / vert forêt ─── */
 :root {
-  /* Fond crème chaud */
-  --background: oklch(0.94 0.023 85);
-  --foreground: oklch(0.24 0.045 55);
+  /* Fond : crème cassé chaud */
+  --background: oklch(0.97 0.008 87);
+  --foreground: oklch(0.22 0.038 170);
 
-  /* Cartes légèrement plus claires */
-  --card: oklch(0.98 0.012 85);
-  --card-foreground: oklch(0.24 0.045 55);
+  /* Cartes : blanc cassé légèrement plus clair */
+  --card: oklch(0.99 0.004 87);
+  --card-foreground: oklch(0.22 0.038 170);
 
   /* Popover */
-  --popover: oklch(0.98 0.012 85);
-  --popover-foreground: oklch(0.24 0.045 55);
+  --popover: oklch(0.99 0.004 87);
+  --popover-foreground: oklch(0.22 0.038 170);
 
-  /* Primaire : brun chaud */
-  --primary: oklch(0.51 0.065 60);
-  --primary-foreground: oklch(0.97 0.010 85);
+  /* Primaire : vert forêt/sarcelle */
+  --primary: oklch(0.47 0.068 172);
+  --primary-foreground: oklch(0.98 0.004 87);
 
-  /* Secondaire : beige moyen */
-  --secondary: oklch(0.90 0.020 85);
-  --secondary-foreground: oklch(0.35 0.045 55);
+  /* Secondaire : vert sauge clair */
+  --secondary: oklch(0.88 0.018 158);
+  --secondary-foreground: oklch(0.28 0.038 170);
 
-  /* Muted : beige doux */
-  --muted: oklch(0.90 0.020 85);
-  --muted-foreground: oklch(0.50 0.035 60);
+  /* Muted : sauge très doux */
+  --muted: oklch(0.91 0.013 155);
+  --muted-foreground: oklch(0.48 0.030 160);
 
-  /* Accent : vert olive */
-  --accent: oklch(0.51 0.052 140);
-  --accent-foreground: oklch(0.97 0.010 85);
+  /* Accent : vert sauge moyen */
+  --accent: oklch(0.84 0.020 158);
+  --accent-foreground: oklch(0.25 0.038 170);
 
   /* Destructive */
   --destructive: oklch(0.577 0.245 27.325);
 
-  /* Bordures */
-  --border: oklch(0.82 0.025 80);
-  --input: oklch(0.86 0.020 80);
-  --ring: oklch(0.51 0.065 60);
+  /* Bordures : sauge discret */
+  --border: oklch(0.87 0.016 155);
+  --input: oklch(0.90 0.013 155);
+  --ring: oklch(0.47 0.068 172);
 
   --radius: 0.625rem;
 
   /* Sidebar */
-  --sidebar: oklch(0.90 0.025 80);
-  --sidebar-foreground: oklch(0.24 0.045 55);
-  --sidebar-primary: oklch(0.51 0.065 60);
-  --sidebar-primary-foreground: oklch(0.97 0.010 85);
-  --sidebar-accent: oklch(0.51 0.052 140);
-  --sidebar-accent-foreground: oklch(0.97 0.010 85);
-  --sidebar-border: oklch(0.80 0.025 80);
-  --sidebar-ring: oklch(0.51 0.065 60);
+  --sidebar: oklch(0.91 0.015 155);
+  --sidebar-foreground: oklch(0.22 0.038 170);
+  --sidebar-primary: oklch(0.47 0.068 172);
+  --sidebar-primary-foreground: oklch(0.98 0.004 87);
+  --sidebar-accent: oklch(0.84 0.020 158);
+  --sidebar-accent-foreground: oklch(0.25 0.038 170);
+  --sidebar-border: oklch(0.85 0.018 155);
+  --sidebar-ring: oklch(0.47 0.068 172);
 }
 
 @layer base {
