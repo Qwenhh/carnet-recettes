@@ -1,16 +1,13 @@
 'use client'
 
 import * as React from 'react'
-import { UploadIcon, CheckCircleIcon, AlertCircleIcon, FileJsonIcon } from 'lucide-react'
+import { UploadIcon, CheckCircleIcon, AlertCircleIcon, FileJsonIcon, ChevronDownIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-
-// ─── Structure JSON attendue ───────────────────────────────────────────────
-// (générée par Claude Cowork depuis les photos de recettes)
 
 interface RecetteImport {
   titre: string
@@ -35,23 +32,21 @@ interface RecetteImport {
 }
 
 type EtatLigne = 'attente' | 'en_cours' | 'ok' | 'erreur'
+interface ResultatImport { titre: string; etat: EtatLigne; message?: string }
 
-interface ResultatImport {
-  titre: string
-  etat: EtatLigne
-  message?: string
-}
+// ─── Prompt unique — gère tous les cas ────────────────────────────────────
 
-// ─── Format de prompt pour Claude Cowork ──────────────────────────────────
+const PROMPT = `Tu vas analyser un lot de photos de recettes de cuisine professionnelles.
 
-const PROMPT_COWORK = `Tu vas analyser une ou plusieurs photos de recettes de cuisine.
+Les photos sont dans l'ORDRE : si une recette occupe plusieurs pages consécutives, les images se suivront naturellement. Tu dois reconstituer chaque recette complète.
 
-RÈGLES IMPORTANTES :
-- Une image peut contenir PLUSIEURS recettes : extrait-les toutes
-- Une recette peut s'étaler sur PLUSIEURS images : regroupe-les en un seul objet
-- Si tu reçois plusieurs images, analyse l'ensemble et produis un seul tableau JSON
+RÈGLES :
+- Si une image contient plusieurs recettes distinctes (titre différent), extrait-les séparément
+- Si plusieurs images consécutives correspondent à la même recette (suite des ingrédients, suite des étapes, recto/verso), regroupe-les en UN SEUL objet
+- Pour identifier une nouvelle recette : cherche un nouveau titre en haut de page, une ligne de séparation, ou un changement de style d'écriture
+- Pour identifier une suite : pas de titre, début en milieu de liste ou en milieu de phrase, mention "suite", numérotation qui continue
 
-Retourne UNIQUEMENT un tableau JSON valide (même pour une seule recette), sans aucun texte autour :
+Retourne UNIQUEMENT un tableau JSON valide, sans texte autour, sans markdown :
 
 [
   {
@@ -76,37 +71,23 @@ Retourne UNIQUEMENT un tableau JSON valide (même pour une seule recette), sans 
   }
 ]
 
-Contraintes :
-- temps : entiers en minutes
-- saisons : uniquement parmi Printemps, Été, Automne, Hiver
-- allergenes possibles : Gluten, Crustacés, Œufs, Poissons, Arachides, Soja, Lait, Fruits à coque, Céleri, Moutarde, Graines de sésame, Anhydride sulfureux et sulfites, Lupin, Mollusques
-- si une info est illisible ou inconnue, omets le champ
-- ne jamais inventer des informations absentes`
-
-const PROMPT_FUSION = `Ces images montrent différentes parties d'UNE MÊME recette (suite de la recette précédente, ou recto/verso).
-
-Combine toutes les informations visibles et retourne UN SEUL objet JSON dans un tableau :
-
-[
-  {
-    "titre": "Nom de la recette",
-    ...
-  }
-]
-
-Même format et mêmes contraintes que pour une recette normale. Retourne uniquement le JSON.`
+Contraintes strictes :
+- temps : entiers en minutes uniquement
+- saisons : uniquement parmi → Printemps, Été, Automne, Hiver
+- allergènes : uniquement parmi → Gluten, Crustacés, Œufs, Poissons, Arachides, Soja, Lait, Fruits à coque, Céleri, Moutarde, Graines de sésame, Anhydride sulfureux et sulfites, Lupin, Mollusques
+- si une information est illisible ou absente, omets le champ (ne pas inventer)
+- retourner uniquement du JSON brut, aucun texte avant ou après`
 
 export default function PageImport() {
   const [json, setJson] = React.useState('')
   const [resultats, setResultats] = React.useState<ResultatImport[]>([])
   const [importEnCours, setImportEnCours] = React.useState(false)
-  const [promptActif, setPromptActif] = React.useState<'standard' | 'fusion' | null>(null)
+  const [promptOuvert, setPromptOuvert] = React.useState(false)
 
   function validerJson(): RecetteImport[] | null {
     try {
       const parsed = JSON.parse(json)
-      const arr = Array.isArray(parsed) ? parsed : [parsed]
-      return arr
+      return Array.isArray(parsed) ? parsed : [parsed]
     } catch {
       toast.error('JSON invalide — vérifiez la syntaxe')
       return null
@@ -115,8 +96,7 @@ export default function PageImport() {
 
   async function importerRecettes() {
     const recettes = validerJson()
-    if (!recettes) return
-    if (recettes.length === 0) { toast.error('Aucune recette à importer'); return }
+    if (!recettes || recettes.length === 0) { toast.error('Aucune recette à importer'); return }
 
     setImportEnCours(true)
     setResultats(recettes.map((r) => ({ titre: r.titre || 'Sans titre', etat: 'attente' })))
@@ -126,7 +106,6 @@ export default function PageImport() {
       setResultats((prev) => prev.map((r, idx) => idx === i ? { ...r, etat: 'en_cours' } : r))
 
       try {
-        // Insérer la recette
         const { data: recetteData, error: errRecette } = await supabase
           .from('recettes')
           .insert({
@@ -140,7 +119,7 @@ export default function PageImport() {
             techniques: rec.techniques ?? [],
             saisons: rec.saisons ?? [],
             contraintes_alimentaires: rec.contraintes_alimentaires ?? [],
-            allergenes: rec.ingredients?.flatMap((i) => i.allergenes ?? []).filter((v, i, a) => a.indexOf(v) === i) ?? [],
+            allergenes: Array.from(new Set(rec.ingredients?.flatMap((i) => i.allergenes ?? []) ?? [])),
             etapes: rec.etapes ?? [],
           })
           .select()
@@ -148,48 +127,24 @@ export default function PageImport() {
 
         if (errRecette || !recetteData) throw new Error(errRecette?.message || 'Erreur création recette')
 
-        const recetteId = recetteData.id
-
-        // Insérer les ingrédients
         if (rec.ingredients?.length) {
           for (const ing of rec.ingredients) {
-            // Upsert ingrédient
             const { data: ingrData, error: errIngr } = await supabase
               .from('ingredients')
-              .upsert(
-                {
-                  nom: ing.nom,
-                  famille: ing.famille ?? null,
-                  saisons: ing.saisons ?? [],
-                  allergenes: ing.allergenes ?? [],
-                },
-                { onConflict: 'nom' }
-              )
+              .upsert({ nom: ing.nom, famille: ing.famille ?? null, saisons: ing.saisons ?? [], allergenes: ing.allergenes ?? [] }, { onConflict: 'nom' })
               .select()
               .single()
-
             if (errIngr || !ingrData) continue
-
-            // Liaison recette-ingrédient
             await supabase.from('recette_ingredients').upsert(
-              {
-                recette_id: recetteId,
-                ingredient_id: ingrData.id,
-                quantite: ing.quantite ?? '',
-                unite: ing.unite ?? '',
-              },
+              { recette_id: recetteData.id, ingredient_id: ingrData.id, quantite: ing.quantite ?? '', unite: ing.unite ?? '' },
               { onConflict: 'recette_id,ingredient_id' }
             )
           }
         }
 
-        setResultats((prev) =>
-          prev.map((r, idx) => idx === i ? { ...r, etat: 'ok' } : r)
-        )
+        setResultats((prev) => prev.map((r, idx) => idx === i ? { ...r, etat: 'ok' } : r))
       } catch (err) {
-        setResultats((prev) =>
-          prev.map((r, idx) => idx === i ? { ...r, etat: 'erreur', message: String(err) } : r)
-        )
+        setResultats((prev) => prev.map((r, idx) => idx === i ? { ...r, etat: 'erreur', message: String(err) } : r))
       }
     }
 
@@ -204,102 +159,96 @@ export default function PageImport() {
     <div className="mx-auto max-w-3xl">
       <h1 className="mb-2 text-2xl font-semibold">Import de recettes</h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        Collez le JSON généré par Claude Cowork depuis vos photos de recettes.
+        Analysez vos photos avec Claude, collez le JSON ici, importez.
       </p>
 
-      {/* Aide */}
-      <section className="mb-6 space-y-3">
+      {/* Workflow */}
+      <section className="mb-6 rounded-xl border border-border bg-card p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <FileJsonIcon className="size-4 text-primary" />
+          <span className="font-medium">Workflow pour 197 photos</span>
+        </div>
 
-        {/* Cas 1 : standard */}
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="mb-1 flex items-center gap-2">
-                <FileJsonIcon className="size-4 text-primary" />
-                <span className="font-medium text-sm">Cas standard</span>
+        <ol className="space-y-3">
+          {[
+            {
+              n: '1',
+              titre: 'Triez vos photos dans l\'ordre',
+              detail: 'Les photos doivent être dans l\'ordre de lecture. Claude détecte automatiquement les débuts et fins de recette.',
+            },
+            {
+              n: '2',
+              titre: 'Envoyez par lots de 20–30 photos à Claude',
+              detail: 'Claude ne peut pas traiter 197 images en une fois. Faites 7–10 sessions de ~25 photos. Glissez-déposez les images directement dans Cowork.',
+            },
+            {
+              n: '3',
+              titre: 'Collez le prompt ci-dessous',
+              detail: 'Un seul prompt gère tous les cas : recettes sur 1 page, sur 2 pages, ou plusieurs recettes par page.',
+            },
+            {
+              n: '4',
+              titre: 'Copiez le JSON → importez ici',
+              detail: 'Collez le JSON retourné par Claude dans la zone ci-dessous et cliquez sur Importer. Répétez pour chaque lot.',
+            },
+          ].map(({ n, titre, detail }) => (
+            <li key={n} className="flex gap-3">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                {n}
+              </span>
+              <div>
+                <p className="text-sm font-medium">{titre}</p>
+                <p className="text-xs text-muted-foreground">{detail}</p>
               </div>
-              <p className="text-sm text-muted-foreground">
-                1+ images avec 1+ recettes chacune → Claude extrait tout en un seul JSON.
-              </p>
-              <ul className="ml-4 mt-1 list-disc space-y-0.5 text-xs text-muted-foreground">
-                <li>Envoyez toutes les images en une seule fois à Claude dans Cowork</li>
-                <li>Collez ce prompt, puis copiez le JSON retourné ci-dessous</li>
-              </ul>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPromptActif(promptActif === 'standard' ? null : 'standard')}
-              className="shrink-0"
-            >
-              {promptActif === 'standard' ? 'Masquer' : 'Voir le prompt'}
-            </Button>
-          </div>
-          {promptActif === 'standard' && (
-            <div className="mt-4 rounded-lg bg-muted p-3">
-              <pre className="whitespace-pre-wrap text-xs text-foreground">{PROMPT_COWORK}</pre>
+            </li>
+          ))}
+        </ol>
+
+        {/* Prompt */}
+        <div className="mt-4 border-t border-border pt-4">
+          <button
+            type="button"
+            onClick={() => setPromptOuvert((v) => !v)}
+            className="flex w-full items-center justify-between text-sm font-medium hover:text-primary"
+          >
+            <span>Voir le prompt à coller dans Cowork</span>
+            <ChevronDownIcon className={`size-4 transition-transform ${promptOuvert ? 'rotate-180' : ''}`} />
+          </button>
+          {promptOuvert && (
+            <div className="mt-3 rounded-lg bg-muted p-3">
+              <pre className="whitespace-pre-wrap text-xs text-foreground leading-relaxed">{PROMPT}</pre>
               <Button
-                size="sm" variant="outline" className="mt-2"
-                onClick={() => { navigator.clipboard.writeText(PROMPT_COWORK); toast.success('Prompt copié !') }}
+                size="sm"
+                variant="outline"
+                className="mt-3"
+                onClick={() => { navigator.clipboard.writeText(PROMPT); toast.success('Prompt copié !') }}
               >
-                Copier
+                Copier le prompt
               </Button>
             </div>
           )}
         </div>
-
-        {/* Cas 2 : recette sur 2 images */}
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="mb-1 flex items-center gap-2">
-                <FileJsonIcon className="size-4 text-primary" />
-                <span className="font-medium text-sm">Recette sur plusieurs images</span>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Une recette est répartie sur 2 images ou plus (recto/verso, suite…).
-              </p>
-              <ul className="ml-4 mt-1 list-disc space-y-0.5 text-xs text-muted-foreground">
-                <li>Envoyez les images de cette recette à Claude dans Cowork</li>
-                <li>Collez ce prompt (dit à Claude de fusionner en une seule recette)</li>
-              </ul>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPromptActif(promptActif === 'fusion' ? null : 'fusion')}
-              className="shrink-0"
-            >
-              {promptActif === 'fusion' ? 'Masquer' : 'Voir le prompt'}
-            </Button>
-          </div>
-          {promptActif === 'fusion' && (
-            <div className="mt-4 rounded-lg bg-muted p-3">
-              <pre className="whitespace-pre-wrap text-xs text-foreground">{PROMPT_FUSION}</pre>
-              <Button
-                size="sm" variant="outline" className="mt-2"
-                onClick={() => { navigator.clipboard.writeText(PROMPT_FUSION); toast.success('Prompt copié !') }}
-              >
-                Copier
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Rappel workflow */}
-        <p className="text-xs text-muted-foreground px-1">
-          💡 <strong>Conseil :</strong> pour un lot de 20 photos, envoyez-les toutes d'un coup — Claude identifie et sépare chaque recette automatiquement.
-        </p>
       </section>
 
       {/* Zone JSON */}
       <section className="mb-4">
-        <label className="mb-1 block text-sm font-medium">JSON des recettes</label>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="text-sm font-medium">JSON retourné par Claude</label>
+          {json.trim() && (
+            <button
+              type="button"
+              onClick={() => setJson('')}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Effacer
+            </button>
+          )}
+        </div>
         <Textarea
           value={json}
           onChange={(e) => setJson(e.target.value)}
           placeholder={'[\n  {\n    "titre": "Ma recette",\n    ...\n  }\n]'}
-          rows={14}
+          rows={12}
           className="font-mono text-xs"
         />
       </section>
@@ -327,12 +276,10 @@ export default function PageImport() {
               <li key={i} className="flex items-center gap-3 text-sm">
                 {r.etat === 'ok' && <CheckCircleIcon className="size-4 shrink-0 text-green-600" />}
                 {r.etat === 'erreur' && <AlertCircleIcon className="size-4 shrink-0 text-destructive" />}
-                {r.etat === 'en_cours' && (
-                  <div className="size-4 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                )}
+                {r.etat === 'en_cours' && <div className="size-4 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />}
                 {r.etat === 'attente' && <div className="size-4 shrink-0 rounded-full border-2 border-muted-foreground" />}
                 <span className={r.etat === 'erreur' ? 'text-destructive' : ''}>{r.titre}</span>
-                {r.message && <span className="text-xs text-muted-foreground">{r.message}</span>}
+                {r.message && <span className="text-xs text-muted-foreground truncate">{r.message}</span>}
               </li>
             ))}
           </ul>
