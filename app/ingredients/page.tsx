@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { PencilIcon, CheckIcon, XIcon, SearchIcon, ChevronRightIcon, ArrowRightIcon } from 'lucide-react'
+import { PencilIcon, CheckIcon, XIcon, SearchIcon, ChevronRightIcon, ArrowRightIcon, MergeIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { supabase } from '@/lib/supabase'
@@ -22,6 +22,7 @@ const SAISON_EMOJIS: Record<Saison, string> = {
 
 interface EditionState {
   id: string
+  nom: string
   famille: string
   saisons: Saison[]
 }
@@ -31,21 +32,32 @@ interface RecetteAssociee {
   titre: string
 }
 
+interface FusionEnAttente {
+  ancienId: string
+  ancienNom: string
+  cibleId: string
+  cibleNom: string
+  famille: string
+  saisons: Saison[]
+}
+
 export default function PageIngredients() {
   const [ingredients, setIngredients] = React.useState<Ingredient[]>([])
   const [loading, setLoading] = React.useState(true)
   const [recherche, setRecherche] = React.useState('')
   const [edition, setEdition] = React.useState<EditionState | null>(null)
   const [familles, setFamilles] = React.useState<string[]>([])
+  const [saving, setSaving] = React.useState(false)
 
   // Panneau recettes associées
   const [ingrSelectionne, setIngrSelectionne] = React.useState<Ingredient | null>(null)
   const [recettesAssociees, setRecettesAssociees] = React.useState<RecetteAssociee[]>([])
   const [loadingRecettes, setLoadingRecettes] = React.useState(false)
 
-  React.useEffect(() => {
-    charger()
-  }, [])
+  // Fusion en attente de confirmation
+  const [fusionEnAttente, setFusionEnAttente] = React.useState<FusionEnAttente | null>(null)
+
+  React.useEffect(() => { charger() }, [])
 
   async function charger() {
     setLoading(true)
@@ -58,16 +70,16 @@ export default function PageIngredients() {
     setLoading(false)
   }
 
+  // ── Panneau recettes associées ────────────────────────────────────────────
+
   async function ouvrirRecettes(ingr: Ingredient) {
     setIngrSelectionne(ingr)
     setRecettesAssociees([])
     setLoadingRecettes(true)
-
     const { data } = await supabase
       .from('recette_ingredients')
       .select('recettes(id, titre)')
       .eq('ingredient_id', ingr.id)
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recettes = (data ?? []).map((row: any) => row.recettes).filter(Boolean) as RecetteAssociee[]
     recettes.sort((a, b) => a.titre.localeCompare(b.titre))
@@ -75,29 +87,13 @@ export default function PageIngredients() {
     setLoadingRecettes(false)
   }
 
-  const filtres = recherche
-    ? ingredients.filter((i) => i.nom.toLowerCase().includes(recherche.toLowerCase()))
-    : ingredients
+  // ── Édition ───────────────────────────────────────────────────────────────
 
   function commencerEdition(ingr: Ingredient) {
-    setEdition({ id: ingr.id, famille: ingr.famille ?? '', saisons: ingr.saisons as Saison[] })
+    setEdition({ id: ingr.id, nom: ingr.nom, famille: ingr.famille ?? '', saisons: ingr.saisons as Saison[] })
   }
 
-  function annulerEdition() {
-    setEdition(null)
-  }
-
-  async function sauvegarderEdition() {
-    if (!edition) return
-    const { error } = await supabase
-      .from('ingredients')
-      .update({ famille: edition.famille || null, saisons: edition.saisons })
-      .eq('id', edition.id)
-    if (error) { toast.error('Erreur lors de la sauvegarde'); return }
-    toast.success('Ingrédient mis à jour')
-    setEdition(null)
-    charger()
-  }
+  function annulerEdition() { setEdition(null) }
 
   function toggleSaisonEdition(s: Saison) {
     if (!edition) return
@@ -107,11 +103,104 @@ export default function PageIngredients() {
     setEdition({ ...edition, saisons: next })
   }
 
+  async function sauvegarderEdition() {
+    if (!edition || !edition.nom.trim()) { toast.error('Le nom est obligatoire'); return }
+    setSaving(true)
+
+    const nomNormalise = edition.nom.trim()
+
+    // Si le nom a changé, vérifier s'il existe déjà un autre ingrédient avec ce nom
+    const ingrOriginal = ingredients.find((i) => i.id === edition.id)
+    if (ingrOriginal && nomNormalise.toLowerCase() !== ingrOriginal.nom.toLowerCase()) {
+      const doublon = ingredients.find(
+        (i) => i.id !== edition.id && i.nom.toLowerCase() === nomNormalise.toLowerCase()
+      )
+      if (doublon) {
+        // Proposer la fusion
+        setFusionEnAttente({
+          ancienId: edition.id,
+          ancienNom: ingrOriginal.nom,
+          cibleId: doublon.id,
+          cibleNom: doublon.nom,
+          famille: edition.famille,
+          saisons: edition.saisons,
+        })
+        setSaving(false)
+        return
+      }
+    }
+
+    // Pas de doublon : simple mise à jour
+    const { error } = await supabase
+      .from('ingredients')
+      .update({ nom: nomNormalise, famille: edition.famille || null, saisons: edition.saisons })
+      .eq('id', edition.id)
+
+    if (error) { toast.error('Erreur lors de la sauvegarde'); setSaving(false); return }
+    toast.success('Ingrédient mis à jour')
+    setEdition(null)
+    setSaving(false)
+    charger()
+  }
+
+  // ── Fusion ────────────────────────────────────────────────────────────────
+
+  async function executerFusion() {
+    if (!fusionEnAttente) return
+    setSaving(true)
+    const { ancienId, cibleId, famille, saisons } = fusionEnAttente
+
+    // 1. Trouver les recettes qui ont DÉJÀ la cible (pour éviter les doublons)
+    const { data: dejaPresents } = await supabase
+      .from('recette_ingredients')
+      .select('recette_id')
+      .eq('ingredient_id', cibleId)
+
+    const recetteIdsAvecCible = (dejaPresents ?? []).map((r) => r.recette_id)
+
+    // 2. Pour les recettes qui ont les deux : supprimer l'ancien
+    if (recetteIdsAvecCible.length > 0) {
+      await supabase
+        .from('recette_ingredients')
+        .delete()
+        .eq('ingredient_id', ancienId)
+        .in('recette_id', recetteIdsAvecCible)
+    }
+
+    // 3. Faire pointer les recettes restantes vers la cible
+    await supabase
+      .from('recette_ingredients')
+      .update({ ingredient_id: cibleId })
+      .eq('ingredient_id', ancienId)
+
+    // 4. Mettre à jour famille/saisons sur la cible si renseignés
+    await supabase
+      .from('ingredients')
+      .update({ famille: famille || null, saisons })
+      .eq('id', cibleId)
+
+    // 5. Supprimer l'ancien ingrédient
+    await supabase.from('ingredients').delete().eq('id', ancienId)
+
+    toast.success('Ingrédients fusionnés !')
+    setFusionEnAttente(null)
+    setEdition(null)
+    setSaving(false)
+    charger()
+  }
+
+  // ── Filtrage ──────────────────────────────────────────────────────────────
+
+  const filtres = recherche
+    ? ingredients.filter((i) => i.nom.toLowerCase().includes(recherche.toLowerCase()))
+    : ingredients
+
+  // ── Rendu ─────────────────────────────────────────────────────────────────
+
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold">Ingrédients</h1>
 
-      {/* Recherche */}
       <div className="relative mb-6">
         <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -152,16 +241,25 @@ export default function PageIngredients() {
                 return (
                   <tr key={ingr.id} className="border-t border-border hover:bg-muted/30">
 
-                    {/* Nom — cliquable pour voir les recettes */}
+                    {/* Nom */}
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => ouvrirRecettes(ingr)}
-                        className="flex items-center gap-1 font-medium hover:text-primary transition-colors group"
-                      >
-                        {ingr.nom}
-                        <ChevronRightIcon className="size-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </button>
+                      {enEdition ? (
+                        <Input
+                          value={edition.nom}
+                          onChange={(e) => setEdition({ ...edition, nom: e.target.value })}
+                          className="h-8 w-44"
+                          autoFocus
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => ouvrirRecettes(ingr)}
+                          className="flex items-center gap-1 font-medium hover:text-primary transition-colors group"
+                        >
+                          {ingr.nom}
+                          <ChevronRightIcon className="size-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                      )}
                     </td>
 
                     {/* Famille */}
@@ -222,12 +320,12 @@ export default function PageIngredients() {
                       </div>
                     </td>
 
-                    {/* Actions édition */}
+                    {/* Actions */}
                     <td className="px-4 py-3">
                       {enEdition ? (
                         <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" onClick={sauvegarderEdition}>
-                            <CheckIcon className="size-4 text-accent" />
+                          <Button size="icon" variant="ghost" onClick={sauvegarderEdition} disabled={saving}>
+                            <CheckIcon className="size-4 text-primary" />
                           </Button>
                           <Button size="icon" variant="ghost" onClick={annulerEdition}>
                             <XIcon className="size-4 text-muted-foreground" />
@@ -253,7 +351,6 @@ export default function PageIngredients() {
           <SheetHeader>
             <SheetTitle>{ingrSelectionne?.nom}</SheetTitle>
           </SheetHeader>
-
           <div className="mt-6">
             {loadingRecettes ? (
               <div className="space-y-2">
@@ -262,9 +359,7 @@ export default function PageIngredients() {
                 ))}
               </div>
             ) : recettesAssociees.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucune recette n&apos;utilise cet ingrédient.
-              </p>
+              <p className="text-sm text-muted-foreground">Aucune recette n&apos;utilise cet ingrédient.</p>
             ) : (
               <>
                 <p className="mb-4 text-sm text-muted-foreground">
@@ -289,6 +384,33 @@ export default function PageIngredients() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* ── Confirmation de fusion ── */}
+      {fusionEnAttente && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
+            <div className="mb-1 flex items-center gap-2">
+              <MergeIcon className="size-5 text-primary" />
+              <h2 className="text-lg font-semibold">Fusionner les ingrédients ?</h2>
+            </div>
+            <p className="mb-6 text-sm text-muted-foreground leading-relaxed">
+              <span className="font-medium text-foreground">«&nbsp;{fusionEnAttente.cibleNom}&nbsp;»</span> existe déjà.
+              Toutes les recettes utilisant <span className="font-medium text-foreground">«&nbsp;{fusionEnAttente.ancienNom}&nbsp;»</span> seront
+              rattachées à <span className="font-medium text-foreground">«&nbsp;{fusionEnAttente.cibleNom}&nbsp;»</span>,
+              puis l&apos;ancien sera supprimé.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setFusionEnAttente(null)} disabled={saving}>
+                Annuler
+              </Button>
+              <Button onClick={executerFusion} disabled={saving}>
+                <MergeIcon className="size-4" />
+                {saving ? 'Fusion…' : 'Fusionner'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
