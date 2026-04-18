@@ -68,6 +68,9 @@ export function mapRecette(raw: RawRecette): Recette {
   const groupOrder: string[] = []
 
   for (const ri of sorted) {
+    // Ignorer les lignes avec une référence d'ingrédient cassée
+    if (!ri.ingredients) continue
+
     const g = ri.groupe ?? ''
     if (!ingredientsMap.has(g)) {
       ingredientsMap.set(g, [])
