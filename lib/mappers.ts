@@ -42,15 +42,48 @@ interface RawRecette {
   recette_ingredients: RawRecetteIngredient[]
 }
 
+// ─── Normalisation d'une étape ────────────────────────────────────────────
+// Claude peut retourner les étapes sous plusieurs formes :
+//   - string simple          : "Faire bouillir l'eau"
+//   - objet { texte, numero }: { "texte": "...", "numero": 1 }
+//   - string JSON stringifié : "{\"texte\":\"...\",\"numero\":1}"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normaliserEtape(etape: any): string {
+  if (typeof etape === 'string') {
+    // Tenter de parser si c'est un objet JSON stringifié
+    const trimmed = etape.trim()
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (parsed && typeof parsed === 'object' && 'texte' in parsed) {
+          return String(parsed.texte)
+        }
+      } catch { /* pas du JSON, on garde tel quel */ }
+    }
+    return etape
+  }
+  // Objet direct { texte, ... }
+  if (typeof etape === 'object' && etape !== null && 'texte' in etape) {
+    return String(etape.texte)
+  }
+  return String(etape ?? '')
+}
+
 // ─── Calcul des sections d'étapes ─────────────────────────────────────────
 
 function computeEtapesSections(raw: RawRecette): EtapeSection[] {
   // Priorité : colonne etapes_sections si présente et non vide
   if (raw.etapes_sections && raw.etapes_sections.length > 0) {
-    return raw.etapes_sections
+    return raw.etapes_sections.map((s) => ({
+      nom: s.nom ?? '',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      etapes: ((s.etapes ?? []) as any[]).map(normaliserEtape).filter(Boolean),
+    }))
   }
   // Sinon, on wrap le tableau plat dans une section sans nom
-  const etapes = raw.etapes ?? []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const etapes = ((raw.etapes ?? []) as any[]).map(normaliserEtape).filter(Boolean)
   if (etapes.length === 0) return [{ nom: '', etapes: [] }]
   return [{ nom: '', etapes }]
 }
