@@ -81,12 +81,38 @@ export default function PageListe() {
   }, [])
 
   const filtresDebounced = useDebounce(filtres, 300)
+  const rechercheDebounced = useDebounce(recherche, 400)
 
-  React.useEffect(() => { setPage(1) }, [filtresDebounced, recherche, tri])
-  React.useEffect(() => { fetchRecettes() }, [filtresDebounced, page, tri]) // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { setPage(1) }, [filtresDebounced, rechercheDebounced, tri])
+  React.useEffect(() => { fetchRecettes() }, [filtresDebounced, rechercheDebounced, page, tri]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchRecettes() {
     setLoading(true)
+
+    // ── Résoudre les IDs de recettes matchant la recherche par ingrédient ──
+    let recetteIdsParIngredient: string[] = []
+    const terme = rechercheDebounced.trim()
+
+    if (terme) {
+      // 1. Trouver les ingrédients dont le nom contient le terme
+      const { data: ingrs } = await supabase
+        .from('ingredients')
+        .select('id')
+        .ilike('nom', `%${terme}%`)
+
+      const ingrIds = ingrs?.map((i) => i.id) ?? []
+
+      // 2. Trouver les recettes qui utilisent ces ingrédients
+      if (ingrIds.length > 0) {
+        const { data: ri } = await supabase
+          .from('recette_ingredients')
+          .select('recette_id')
+          .in('ingredient_id', ingrIds)
+        recetteIdsParIngredient = [...new Set(ri?.map((r) => r.recette_id) ?? [])]
+      }
+    }
+
+    // ── Requête principale ──
     let query = supabase
       .from('recettes')
       .select('*, recette_ingredients(quantite, unite, groupe, ordre, ingredients(id, nom, famille, saisons, allergenes))', { count: 'exact' })
@@ -95,6 +121,15 @@ export default function PageListe() {
     if (tri === 'recent') query = query.order('created_at', { ascending: false })
     else if (tri === 'ancien') query = query.order('created_at', { ascending: true })
     else query = query.order('titre', { ascending: true })
+
+    // Recherche globale : titre OU ingrédient
+    if (terme) {
+      if (recetteIdsParIngredient.length > 0) {
+        query = query.or(`titre.ilike.%${terme}%,id.in.(${recetteIdsParIngredient.join(',')})`)
+      } else {
+        query = query.ilike('titre', `%${terme}%`)
+      }
+    }
 
     // Filtres
     if (filtresDebounced.saisons.length) query = query.overlaps('saisons', filtresDebounced.saisons)
@@ -116,10 +151,6 @@ export default function PageListe() {
     setLoading(false)
   }
 
-  const recettesFiltrees = recherche.trim()
-    ? recettes.filter((r) => r.titre.toLowerCase().includes(recherche.toLowerCase()))
-    : recettes
-
   const nbPages = Math.ceil(total / PER_PAGE)
 
   return (
@@ -138,7 +169,7 @@ export default function PageListe() {
         <div className="relative flex-1">
           <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Rechercher une recette…"
+            placeholder="Rechercher par titre ou ingrédient…"
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             className="pl-9"
@@ -174,7 +205,7 @@ export default function PageListe() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
             </div>
-          ) : recettesFiltrees.length === 0 ? (
+          ) : recettes.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
               <span className="text-5xl">🍽️</span>
               <p className="text-lg font-medium">Aucune recette trouvée</p>
@@ -183,7 +214,7 @@ export default function PageListe() {
           ) : (
             <>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {recettesFiltrees.map((r) => <RecetteCard key={r.id} recette={r} />)}
+                {recettes.map((r) => <RecetteCard key={r.id} recette={r} />)}
               </div>
               {nbPages > 1 && (
                 <div className="mt-6 flex items-center justify-center gap-3">
