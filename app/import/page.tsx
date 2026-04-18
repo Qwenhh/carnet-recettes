@@ -51,71 +51,109 @@ interface ResultatImport { titre: string; etat: EtatLigne; message?: string }
 
 // ─── Prompt ───────────────────────────────────────────────────────────────
 
-const PROMPT = `Tu traites UNE photo de fiche recette à la fois.
+const PROMPT = `Tu vas analyser un dossier de photos de fiches recettes professionnelles, UNE PAR UNE dans l'ordre.
 
-RÈGLES :
-- Si la photo contient une recette complète → retourne un objet JSON unique
-- Si la photo est la SUITE d'une recette précédente (pas de titre, liste ou phrase qui continue) → ajoute "_suite": true et extrais ce que tu vois
-- Si la photo contient plusieurs recettes distinctes → retourne un tableau JSON
+OBJECTIF : produire à la fin UN SEUL tableau JSON contenant toutes les recettes complètes.
 
-CHAMPS À EXTRAIRE (tous optionnels sauf titre) :
-- titre : nom de la recette
+━━━ RÈGLES DE LECTURE ━━━
+
+Analyse chaque photo et détermine sa nature :
+
+1. RECETTE COMPLÈTE sur une page → commence et se termine sur cette image (titre + ingrédients + préparation présents)
+
+2. RECETTE SUR PLUSIEURS PAGES → fréquent ! Une recette peut occuper 2, 3 pages ou plus.
+   - Page 1 : titre + début des ingrédients ou du texte, mais préparation absente ou incomplète
+   - Pages suivantes : suite des ingrédients, suite de la préparation, dressage… sans nouveau titre
+   - Indices d'une suite : pas de titre en haut, liste qui commence au milieu, numérotation qui continue, "suite…"
+   - Dans ce cas : ATTENDS d'avoir toutes les pages avant d'ajouter la recette au JSON
+
+3. PLUSIEURS RECETTES sur une même page → titres distincts, séparateurs visuels
+   → crée autant d'objets que de recettes
+
+En cas de doute sur une suite : regarde la photo suivante avant de conclure.
+
+━━━ CHAMPS À EXTRAIRE ━━━
+
+- titre : nom de la recette (obligatoire)
 - descriptif : description courte si présente
-- conseils : "conseil du chef", "concept", "techniques/objectifs", notes pédagogiques — tout en un seul bloc
-- materiel : matériel nécessaire (texte libre)
+- conseils : tout ce qui relève du "conseil du chef", "concept", "techniques/objectifs", notes pédagogiques — en un seul bloc de texte
+- materiel : matériel et équipements nécessaires
 - conservation : durée et mode de conservation
-- declinaisons : variantes, alternatives, substitutions, propositions de déclinaisons
+- declinaisons : variantes, alternatives, substitutions d'ingrédients
 - nb_personnes : entier
 - temps_preparation, temps_cuisson, temps_repos : entiers en minutes
 - types_plat : tableau parmi → Entrée, Plat, Dessert, Snack, Sauce, Base, Boisson
-- techniques : tableau (ex: ["Cuisson vapeur", "Émulsion"])
+- techniques : tableau de techniques (ex: ["Cuisson vapeur", "Émulsion", "Façonnage"])
 - saisons : tableau parmi → Printemps, Été, Automne, Hiver
-- contraintes_alimentaires : tableau (ex: ["Vegan", "Sans gluten"])
+- contraintes_alimentaires : tableau (ex: ["Vegan", "Sans gluten", "Sans lactose"])
 
-INGRÉDIENTS — champ "groupe" pour les sections distinctes :
-- une seule liste → pas de groupe
-- plusieurs sections (ex: "Émulsion", "Mimosa") → renseigne "groupe" sur chaque ingrédient
-- allergenes : uniquement parmi → Gluten, Crustacés, Œufs, Poissons, Arachides, Soja, Lait, Fruits à coque, Céleri, Moutarde, Graines de sésame, Anhydride sulfureux et sulfites, Lupin, Mollusques
+━━━ INGRÉDIENTS ━━━
 
-PRÉPARATION — champ "etapes_sections" :
-- chaque section a un "nom" (ex: "Mise en oeuvre", "Dressage", "Sauce") et des "etapes" (tableau de strings)
-- une seule section sans titre → nom: ""
-- dressage, topping, finition → section séparée si mentionnée distinctement
-- les étapes sont des strings simples, jamais des objets
+Certaines recettes ont plusieurs sections d'ingrédients (ex: "Pour la pâte", "Pour la garniture", "Émulsion", "Mimosa"…).
+Utilise le champ "groupe" pour indiquer la section de chaque ingrédient.
+Si une seule liste sans titre de section → omets le champ groupe.
 
-Retourne UNIQUEMENT du JSON brut, sans texte autour, sans markdown.
+allergenes : uniquement parmi ces 14 → Gluten, Crustacés, Œufs, Poissons, Arachides, Soja, Lait, Fruits à coque, Céleri, Moutarde, Graines de sésame, Anhydride sulfureux et sulfites, Lupin, Mollusques
 
-Exemple pour une recette simple :
-{
-  "titre": "Bouillon d'épluchures",
-  "materiel": "Rondeau, chinois-étamine",
-  "conservation": "3 jours au frais",
-  "conseils": "Varier les légumes selon la saison. Cuisson en bouillon.",
-  "nb_personnes": 6,
-  "temps_preparation": 20,
-  "temps_cuisson": 60,
-  "temps_repos": 30,
-  "techniques": ["Cuisson en bouillon"],
-  "contraintes_alimentaires": ["Vegan"],
-  "ingredients": [
-    { "nom": "Oignon", "quantite": "2", "unite": "pièces" },
-    { "nom": "Sauce soja tamari", "quantite": "2", "unite": "càs", "allergenes": ["Soja"] }
-  ],
-  "etapes_sections": [
-    {
-      "nom": "",
-      "etapes": [
-        "Peler et émincer les oignons.",
-        "Faire suer sur feu vif avec l'huile d'olive.",
-        "Mouiller avec la sauce tamari puis ajouter les épluchures.",
-        "Couvrir d'eau et porter à ébullition. Laisser mijoter 1 heure.",
-        "Filtrer au chinois et assaisonner."
-      ]
-    }
-  ]
-}
+━━━ PRÉPARATION ━━━
 
-Si une information est illisible ou absente, omets le champ. Ne jamais inventer. Les étapes sont toujours des strings simples.`
+Utilise "etapes_sections" pour les sections de préparation.
+Chaque section a un "nom" (ex: "Mise en oeuvre", "Dressage", "Topping", "Sauce", "Émulsion") et des "etapes".
+Si une seule section sans titre → nom: ""
+Le dressage, les toppings et la finition vont dans leur propre section si c'est indiqué séparément sur la fiche.
+IMPORTANT : les étapes sont toujours des strings simples, jamais des objets.
+
+━━━ FORMAT DE SORTIE ━━━
+
+Quand tu as parcouru TOUTES les photos, retourne UN SEUL tableau JSON avec toutes les recettes :
+
+[
+  {
+    "titre": "Bouillon d'épluchures",
+    "materiel": "Rondeau haut, couvercle, chinois-étamine",
+    "conservation": "3 jours au frais",
+    "conseils": "Intégrer des épluchures / réaliser une recette zéro déchet. Varier les légumes selon la saison.",
+    "declinaisons": "Varier les légumes et les épluchures en fonction de la saisonnalité.",
+    "nb_personnes": 6,
+    "temps_preparation": 20,
+    "temps_cuisson": 60,
+    "temps_repos": 30,
+    "techniques": ["Cuisson en bouillon"],
+    "contraintes_alimentaires": ["Vegan"],
+    "ingredients": [
+      { "nom": "Oignon", "quantite": "2", "unite": "pièces", "groupe": "Bouillon" },
+      { "nom": "Champignons shiitake déshydratés", "quantite": "3", "unite": "pièces", "groupe": "Garniture aromatique" },
+      { "nom": "Sauce soja tamari", "quantite": "2", "unite": "càs", "allergenes": ["Soja"] }
+    ],
+    "etapes_sections": [
+      {
+        "nom": "",
+        "etapes": [
+          "Peler et émincer les oignons. Nettoyer et émincer les champignons.",
+          "Faire suer sur feu vif les oignons puis les champignons avec l'huile d'olive.",
+          "Mouiller avec la sauce tamari et le vin rouge, remuer jusqu'à évaporation.",
+          "Ajouter les épluchures triées, lavées et émincées.",
+          "Couvrir d'eau et porter à ébullition. Laisser mijoter 1 heure.",
+          "Hors du feu, laisser infuser 30 minutes à couvert puis filtrer au chinois."
+        ]
+      }
+    ]
+  },
+  {
+    "titre": "Maki de poireau, mimosa de tofu",
+    "ingredients": [
+      { "nom": "Poireau", "quantite": "1", "unite": "pièce/personne", "groupe": "Maki" },
+      { "nom": "Lait de soja", "quantite": "75", "unite": "g", "groupe": "Émulsion", "allergenes": ["Soja"] }
+    ],
+    "etapes_sections": [
+      { "nom": "Mise en oeuvre", "etapes": ["Nettoyer et parer les poireaux.", "Cuire à la vapeur 10 à 15 minutes."] },
+      { "nom": "Dressage", "etapes": ["Trancher le maki et dresser sur l'assiette.", "Pocher l'émulsion."] }
+    ]
+  }
+]
+
+Ne retourne RIEN avant d'avoir analysé toutes les photos. Pas de texte, pas de commentaires, uniquement le tableau JSON final.
+Si une information est illisible, omets le champ. Ne jamais inventer.`
 
 // ─── Composant principal ───────────────────────────────────────────────────
 
@@ -248,22 +286,22 @@ export default function PageImport() {
             {
               n: '1',
               titre: 'Donnez accès au dossier photos à Claude Cowork',
-              detail: 'Claude Cowork doit avoir accès au dossier contenant toutes vos photos, triées dans l\'ordre.',
+              detail: 'Les photos doivent être nommées dans l\'ordre (ex : 001.jpg, 002.jpg…) pour que Claude les traite dans le bon ordre.',
             },
             {
               n: '2',
               titre: 'Copiez le prompt ci-dessous et donnez-le à Claude Cowork',
-              detail: 'Ajoutez ensuite : "Traite chaque photo une par une dans l\'ordre. Pour chaque photo, génère le JSON, ouvre la page import, colle le JSON et clique sur Importer. Puis passe à la photo suivante."',
+              detail: 'Ajoutez : "Lis toutes les photos du dossier une par une dans l\'ordre. Certaines recettes s\'étalent sur plusieurs pages — regroupe-les. Plusieurs recettes peuvent apparaître sur une même page. Retourne à la fin un seul tableau JSON."',
             },
             {
               n: '3',
-              titre: 'Claude traite les photos automatiquement',
-              detail: 'Il analyse une photo, retourne le JSON d\'une recette, importe, et recommence. Si une recette est sur 2 pages, il le détecte et regroupe.',
+              titre: 'Claude parcourt toutes les photos et retourne un JSON final',
+              detail: 'Il détecte les recettes complètes, les suites de page en page, et les pages multi-recettes. Rien n\'est retourné avant d\'avoir tout lu.',
             },
             {
               n: '4',
-              titre: 'Ou importez manuellement photo par photo',
-              detail: 'Envoyez une seule photo à Claude avec le prompt, copiez le JSON retourné, collez-le ci-dessous et importez.',
+              titre: 'Copiez le JSON → importez ici en une fois',
+              detail: 'Collez le tableau JSON retourné par Claude dans la zone ci-dessous et cliquez sur Importer. Toutes les recettes sont créées en une opération.',
             },
           ].map(({ n, titre, detail }) => (
             <li key={n} className="flex gap-3">
@@ -285,7 +323,7 @@ export default function PageImport() {
             onClick={() => setPromptOuvert((v) => !v)}
             className="flex w-full items-center justify-between text-sm font-medium hover:text-primary"
           >
-            <span>Voir le prompt (1 photo à la fois)</span>
+            <span>Voir le prompt à donner à Claude Cowork</span>
             <ChevronDownIcon className={`size-4 transition-transform ${promptOuvert ? 'rotate-180' : ''}`} />
           </button>
           {promptOuvert && (
