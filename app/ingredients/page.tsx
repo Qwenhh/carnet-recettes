@@ -1,7 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import { PencilIcon, CheckIcon, XIcon, SearchIcon } from 'lucide-react'
+import Link from 'next/link'
+import { PencilIcon, CheckIcon, XIcon, SearchIcon, ChevronRightIcon, ArrowRightIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { supabase } from '@/lib/supabase'
@@ -10,6 +11,7 @@ import { SAISONS } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 
 const SAISON_EMOJIS: Record<Saison, string> = {
   Printemps: '🌸',
@@ -24,12 +26,22 @@ interface EditionState {
   saisons: Saison[]
 }
 
+interface RecetteAssociee {
+  id: string
+  titre: string
+}
+
 export default function PageIngredients() {
   const [ingredients, setIngredients] = React.useState<Ingredient[]>([])
   const [loading, setLoading] = React.useState(true)
   const [recherche, setRecherche] = React.useState('')
   const [edition, setEdition] = React.useState<EditionState | null>(null)
   const [familles, setFamilles] = React.useState<string[]>([])
+
+  // Panneau recettes associées
+  const [ingrSelectionne, setIngrSelectionne] = React.useState<Ingredient | null>(null)
+  const [recettesAssociees, setRecettesAssociees] = React.useState<RecetteAssociee[]>([])
+  const [loadingRecettes, setLoadingRecettes] = React.useState(false)
 
   React.useEffect(() => {
     charger()
@@ -44,6 +56,23 @@ export default function PageIngredients() {
     setIngredients((ingrs as Ingredient[]) ?? [])
     setFamilles(listes?.map((l) => l.nom) ?? [])
     setLoading(false)
+  }
+
+  async function ouvrirRecettes(ingr: Ingredient) {
+    setIngrSelectionne(ingr)
+    setRecettesAssociees([])
+    setLoadingRecettes(true)
+
+    const { data } = await supabase
+      .from('recette_ingredients')
+      .select('recettes(id, titre)')
+      .eq('ingredient_id', ingr.id)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recettes = (data ?? []).map((row: any) => row.recettes).filter(Boolean) as RecetteAssociee[]
+    recettes.sort((a, b) => a.titre.localeCompare(b.titre))
+    setRecettesAssociees(recettes)
+    setLoadingRecettes(false)
   }
 
   const filtres = recherche
@@ -122,7 +151,18 @@ export default function PageIngredients() {
                 const enEdition = edition?.id === ingr.id
                 return (
                   <tr key={ingr.id} className="border-t border-border hover:bg-muted/30">
-                    <td className="px-4 py-3 font-medium">{ingr.nom}</td>
+
+                    {/* Nom — cliquable pour voir les recettes */}
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => ouvrirRecettes(ingr)}
+                        className="flex items-center gap-1 font-medium hover:text-primary transition-colors group"
+                      >
+                        {ingr.nom}
+                        <ChevronRightIcon className="size-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    </td>
 
                     {/* Famille */}
                     <td className="px-4 py-3">
@@ -182,7 +222,7 @@ export default function PageIngredients() {
                       </div>
                     </td>
 
-                    {/* Actions */}
+                    {/* Actions édition */}
                     <td className="px-4 py-3">
                       {enEdition ? (
                         <div className="flex gap-1">
@@ -206,6 +246,49 @@ export default function PageIngredients() {
           </table>
         </div>
       )}
+
+      {/* ── Panneau recettes associées ── */}
+      <Sheet open={!!ingrSelectionne} onOpenChange={(open) => { if (!open) setIngrSelectionne(null) }}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>{ingrSelectionne?.nom}</SheetTitle>
+          </SheetHeader>
+
+          <div className="mt-6">
+            {loadingRecettes ? (
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-10 animate-pulse rounded-lg bg-muted" />
+                ))}
+              </div>
+            ) : recettesAssociees.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Aucune recette n&apos;utilise cet ingrédient.
+              </p>
+            ) : (
+              <>
+                <p className="mb-4 text-sm text-muted-foreground">
+                  {recettesAssociees.length} recette{recettesAssociees.length > 1 ? 's' : ''}
+                </p>
+                <ul className="space-y-2">
+                  {recettesAssociees.map((r) => (
+                    <li key={r.id}>
+                      <Link
+                        href={`/recettes/${r.id}`}
+                        onClick={() => setIngrSelectionne(null)}
+                        className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium hover:bg-secondary transition-colors"
+                      >
+                        {r.titre}
+                        <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
