@@ -188,6 +188,24 @@ function normaliserIngredients(raw: any[]): IngredientImport[] {
   return result
 }
 
+// ─── Normalisation du titre ───────────────────────────────────────────────
+// Si le titre est en MAJUSCULES (ou quasi), on le passe en "Phrase case".
+// Ex : "SAUCE DE BASE" → "Sauce de base"
+// Les titres déjà en casse mixte ne sont pas modifiés.
+
+function formaliserTitre(titre: string): string {
+  if (!titre) return titre
+  const lettres = titre.replace(/[^a-zA-ZÀ-ÿ]/g, '')
+  if (!lettres.length) return titre
+  const majuscules = lettres.split('').filter((c) => c === c.toUpperCase() && c !== c.toLowerCase()).length
+  // Si plus de 70 % des lettres sont en majuscules → normaliser
+  if (majuscules / lettres.length > 0.7) {
+    const lower = titre.toLowerCase()
+    return lower.charAt(0).toUpperCase() + lower.slice(1)
+  }
+  return titre
+}
+
 // ─── Normalisation des tableaux ───────────────────────────────────────────
 // Claude retourne parfois une string là où on attend un tableau.
 // Cette fonction accepte string, string[], null, undefined → string[]
@@ -260,7 +278,7 @@ export default function PageImport() {
         const { data: recetteData, error: errRecette } = await supabase
           .from('recettes')
           .insert({
-            titre: rec.titre || 'Sans titre',
+            titre: formaliserTitre(rec.titre || 'Sans titre'),
             descriptif: rec.descriptif ?? null,
             declinaisons: rec.declinaisons ?? null,
             materiel: rec.materiel ?? null,
