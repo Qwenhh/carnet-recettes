@@ -89,27 +89,13 @@ export default function PageListe() {
   async function fetchRecettes() {
     setLoading(true)
 
-    // ── Résoudre les IDs de recettes matchant la recherche par ingrédient ──
-    let recetteIdsParIngredient: string[] = []
     const terme = rechercheDebounced.trim()
 
+    // ── Recherche via RPC (insensible aux accents et à la casse) ──
+    let idsRecherche: string[] | null = null
     if (terme) {
-      // 1. Trouver les ingrédients dont le nom contient le terme
-      const { data: ingrs } = await supabase
-        .from('ingredients')
-        .select('id')
-        .ilike('nom', `%${terme}%`)
-
-      const ingrIds = ingrs?.map((i) => i.id) ?? []
-
-      // 2. Trouver les recettes qui utilisent ces ingrédients
-      if (ingrIds.length > 0) {
-        const { data: ri } = await supabase
-          .from('recette_ingredients')
-          .select('recette_id')
-          .in('ingredient_id', ingrIds)
-        recetteIdsParIngredient = [...new Set(ri?.map((r) => r.recette_id) ?? [])]
-      }
+      const { data } = await supabase.rpc('search_recette_ids', { terme })
+      idsRecherche = (data ?? []).map((r: { id: string }) => r.id)
     }
 
     // ── Requête principale ──
@@ -122,13 +108,16 @@ export default function PageListe() {
     else if (tri === 'ancien') query = query.order('created_at', { ascending: true })
     else query = query.order('titre', { ascending: true })
 
-    // Recherche globale : titre OU ingrédient
-    if (terme) {
-      if (recetteIdsParIngredient.length > 0) {
-        query = query.or(`titre.ilike.%${terme}%,id.in.(${recetteIdsParIngredient.join(',')})`)
-      } else {
-        query = query.ilike('titre', `%${terme}%`)
+    // Filtrer par IDs si recherche active
+    if (idsRecherche !== null) {
+      if (idsRecherche.length === 0) {
+        // Aucun résultat
+        setRecettes([])
+        setTotal(0)
+        setLoading(false)
+        return
       }
+      query = query.in('id', idsRecherche)
     }
 
     // Filtres
