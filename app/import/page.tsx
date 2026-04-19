@@ -155,6 +155,27 @@ Quand tu as parcouru TOUTES les photos, retourne UN SEUL tableau JSON avec toute
 Ne retourne RIEN avant d'avoir analysé toutes les photos. Pas de texte, pas de commentaires, uniquement le tableau JSON final.
 Si une information est illisible, omets le champ. Ne jamais inventer.`
 
+// ─── Normalisation ────────────────────────────────────────────────────────
+// Claude retourne parfois une string là où on attend un tableau.
+// Cette fonction accepte string, string[], null, undefined → string[]
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toArray(val: any): string[] {
+  if (!val) return []
+  if (Array.isArray(val)) return val.map(String).filter(Boolean)
+  if (typeof val === 'string') {
+    // Essayer de parser si c'est du JSON stringifié (ex: '["Vegan"]')
+    const trimmed = val.trim()
+    if (trimmed.startsWith('[')) {
+      try { return JSON.parse(trimmed) } catch { /* ignore */ }
+    }
+    // Sinon : string simple → tableau d'un élément (pas de split sur virgule
+    // car "Anhydride sulfureux et sulfites" contient une virgule)
+    return [val].filter(Boolean)
+  }
+  return []
+}
+
 // ─── Composant principal ───────────────────────────────────────────────────
 
 export default function PageImport() {
@@ -196,7 +217,7 @@ export default function PageImport() {
 
         // ── Déduire les allergènes depuis les ingrédients ──
         const allergenes = Array.from(new Set(
-          rec.ingredients?.flatMap((i) => i.allergenes ?? []) ?? []
+          rec.ingredients?.flatMap((i) => toArray(i.allergenes)) ?? []
         ))
 
         // ── Insérer la recette ──
@@ -213,10 +234,10 @@ export default function PageImport() {
             temps_preparation: rec.temps_preparation ?? null,
             temps_cuisson: rec.temps_cuisson ?? null,
             temps_repos: rec.temps_repos ?? null,
-            types_plat: rec.types_plat ?? [],
-            techniques: rec.techniques ?? [],
-            saisons: rec.saisons ?? [],
-            contraintes_alimentaires: rec.contraintes_alimentaires ?? [],
+            types_plat: toArray(rec.types_plat),
+            techniques: toArray(rec.techniques),
+            saisons: toArray(rec.saisons),
+            contraintes_alimentaires: toArray(rec.contraintes_alimentaires),
             allergenes,
             etapes: etapes_flat,
             etapes_sections: etapes_sections.length > 0 ? etapes_sections : null,
