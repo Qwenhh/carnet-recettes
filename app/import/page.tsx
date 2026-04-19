@@ -155,7 +155,40 @@ Quand tu as parcouru TOUTES les photos, retourne UN SEUL tableau JSON avec toute
 Ne retourne RIEN avant d'avoir analysé toutes les photos. Pas de texte, pas de commentaires, uniquement le tableau JSON final.
 Si une information est illisible, omets le champ. Ne jamais inventer.`
 
-// ─── Normalisation ────────────────────────────────────────────────────────
+// ─── Normalisation des ingrédients ────────────────────────────────────────
+// Claude retourne les ingrédients dans deux formats :
+//   Format plat    : [{ nom, quantite, unite, groupe? }]
+//   Format groupé  : [{ groupe, items: [{ nom, quantite, unite }] }]
+// On normalise tout vers le format plat avec groupe sur chaque ligne.
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normaliserIngredients(raw: any[]): IngredientImport[] {
+  const result: IngredientImport[] = []
+  for (const item of raw) {
+    if (!item) continue
+    // Format groupé : { groupe, items: [...] }
+    if (item.items && Array.isArray(item.items)) {
+      for (const ing of item.items) {
+        if (!ing?.nom) continue
+        result.push({
+          nom: ing.nom,
+          quantite: ing.quantite,
+          unite: ing.unite,
+          groupe: item.groupe ?? ing.groupe ?? undefined,
+          famille: ing.famille,
+          saisons: ing.saisons,
+          allergenes: ing.allergenes,
+        })
+      }
+    } else if (item.nom) {
+      // Format plat : { nom, quantite, unite, groupe? }
+      result.push(item as IngredientImport)
+    }
+  }
+  return result
+}
+
+// ─── Normalisation des tableaux ───────────────────────────────────────────
 // Claude retourne parfois une string là où on attend un tableau.
 // Cette fonction accepte string, string[], null, undefined → string[]
 
@@ -215,9 +248,12 @@ export default function PageImport() {
         }
         const etapes_flat = etapes_sections.flatMap((s) => s.etapes)
 
+        // ── Normaliser les ingrédients (format plat ou groupé) ──
+        const ingredients = normaliserIngredients(rec.ingredients ?? [])
+
         // ── Déduire les allergènes depuis les ingrédients ──
         const allergenes = Array.from(new Set(
-          rec.ingredients?.flatMap((i) => toArray(i.allergenes)) ?? []
+          ingredients.flatMap((i) => toArray(i.allergenes))
         ))
 
         // ── Insérer la recette ──
@@ -248,9 +284,9 @@ export default function PageImport() {
         if (errRecette || !recetteData) throw new Error(errRecette?.message || 'Erreur création recette')
 
         // ── Insérer les ingrédients avec groupe et ordre ──
-        if (rec.ingredients?.length) {
-          for (let ii = 0; ii < rec.ingredients.length; ii++) {
-            const ing = rec.ingredients[ii]
+        if (ingredients.length > 0) {
+          for (let ii = 0; ii < ingredients.length; ii++) {
+            const ing = ingredients[ii]
             const { data: ingrData, error: errIngr } = await supabase
               .from('ingredients')
               .upsert(
