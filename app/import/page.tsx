@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { UploadIcon, CheckCircleIcon, AlertCircleIcon, FileJsonIcon, ChevronDownIcon } from 'lucide-react'
+import { UploadIcon, CheckCircleIcon, AlertCircleIcon, FileJsonIcon, ChevronDownIcon, DownloadIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { supabase } from '@/lib/supabase'
@@ -344,39 +344,49 @@ export default function PageImport() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="mb-2 text-2xl font-semibold">Import de recettes</h1>
-      <p className="mb-6 text-sm text-muted-foreground">
-        Analysez vos photos avec Claude, collez le JSON ici, importez.
-      </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="mb-1 text-2xl font-semibold">Import / Export</h1>
+          <p className="text-sm text-muted-foreground">
+            Analysez vos photos avec Claude, collez le JSON ici, importez.
+          </p>
+        </div>
+        <a href="/api/export" download>
+          <Button variant="outline">
+            <DownloadIcon className="size-4" />
+            Exporter la BDD
+          </Button>
+        </a>
+      </div>
 
       {/* Workflow */}
       <section className="mb-6 rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-2 mb-4">
           <FileJsonIcon className="size-4 text-primary" />
-          <span className="font-medium">Workflow pour 197 photos</span>
+          <span className="font-medium">Workflow d'import</span>
         </div>
 
         <ol className="space-y-3">
           {[
             {
               n: '1',
-              titre: 'Donnez accès au dossier photos à Claude Cowork',
-              detail: 'Les photos doivent être nommées dans l\'ordre (ex : 001.jpg, 002.jpg…) pour que Claude les traite dans le bon ordre.',
+              titre: 'Photographiez vos fiches recettes',
+              detail: 'Une photo par page. Si une recette tient sur plusieurs pages, photographiez-les dans l\'ordre. Nommez les fichiers dans l\'ordre (001.jpg, 002.jpg…) si vous en avez plusieurs.',
             },
             {
               n: '2',
-              titre: 'Copiez le prompt ci-dessous et donnez-le à Claude Cowork',
-              detail: 'Ajoutez : "Lis toutes les photos du dossier une par une dans l\'ordre. Certaines recettes s\'étalent sur plusieurs pages — regroupe-les. Plusieurs recettes peuvent apparaître sur une même page. Retourne à la fin un seul tableau JSON."',
+              titre: 'Donnez les photos + le prompt à Claude',
+              detail: 'Copiez le prompt ci-dessous et envoyez-le à Claude avec vos photos en pièces jointes (claude.ai ou Claude Cowork). Fonctionne pour 1 recette comme pour 100.',
             },
             {
               n: '3',
-              titre: 'Claude parcourt toutes les photos et retourne un JSON final',
-              detail: 'Il détecte les recettes complètes, les suites de page en page, et les pages multi-recettes. Rien n\'est retourné avant d\'avoir tout lu.',
+              titre: 'Claude retourne un tableau JSON',
+              detail: 'Il regroupe les recettes sur plusieurs pages, détecte plusieurs recettes sur une même page, et retourne un seul tableau JSON à la fin.',
             },
             {
               n: '4',
-              titre: 'Copiez le JSON → importez ici en une fois',
-              detail: 'Collez le tableau JSON retourné par Claude dans la zone ci-dessous et cliquez sur Importer. Toutes les recettes sont créées en une opération.',
+              titre: 'Collez le JSON ici et importez',
+              detail: 'Collez le tableau JSON retourné par Claude dans la zone ci-dessous et cliquez sur Importer.',
             },
           ].map(({ n, titre, detail }) => (
             <li key={n} className="flex gap-3">
