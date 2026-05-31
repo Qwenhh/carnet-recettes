@@ -4,13 +4,7 @@ import { supabase } from '@/lib/supabase'
 // Route appelée par le cron Vercel toutes les 5 jours
 // pour éviter la mise en veille automatique de Supabase (free tier)
 
-export async function GET(request: Request) {
-  // Vérifier que l'appel vient bien de Vercel Cron
-  const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export async function GET() {
   const { error } = await supabase
     .from('recettes')
     .select('id')
