@@ -229,6 +229,29 @@ export default function PageImport() {
   const [resultats, setResultats] = React.useState<ResultatImport[]>([])
   const [importEnCours, setImportEnCours] = React.useState(false)
   const [promptOuvert, setPromptOuvert] = React.useState(false)
+  const [typesPlatValides, setTypesPlatValides] = React.useState<string[]>([])
+
+  React.useEffect(() => {
+    async function chargerTypesPlat() {
+      const { data } = await supabase
+        .from('listes_reference')
+        .select('nom')
+        .eq('type', 'type_plat')
+        .order('nom')
+      setTypesPlatValides((data ?? []).map((d) => d.nom))
+    }
+    chargerTypesPlat()
+  }, [])
+
+  // Ne garde que les types de plat définis dans le paramétrage (insensible à la casse)
+  function filtrerTypesPlat(valeurs: string[]): string[] {
+    const result: string[] = []
+    for (const v of valeurs) {
+      const match = typesPlatValides.find((t) => t.toLowerCase() === v.toLowerCase())
+      if (match) result.push(match)
+    }
+    return result
+  }
 
   function validerJson(): RecetteImport[] | null {
     try {
@@ -283,7 +306,7 @@ export default function PageImport() {
             temps_preparation: rec.temps_preparation ?? null,
             temps_cuisson: rec.temps_cuisson ?? null,
             temps_repos: rec.temps_repos ?? null,
-            types_plat: toArray(rec.types_plat),
+            types_plat: filtrerTypesPlat(toArray(rec.types_plat)),
             saisons: toArray(rec.saisons),
             contraintes_alimentaires: toArray(rec.contraintes_alimentaires),
             allergenes,

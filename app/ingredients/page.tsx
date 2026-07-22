@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { PencilIcon, CheckIcon, XIcon, SearchIcon, ChevronRightIcon, ArrowRightIcon, MergeIcon } from 'lucide-react'
+import { PencilIcon, CheckIcon, XIcon, SearchIcon, ChevronRightIcon, ArrowRightIcon, MergeIcon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { supabase } from '@/lib/supabase'
@@ -12,6 +12,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 const SAISON_EMOJIS: Record<Saison, string> = {
   Printemps: '🌸',
@@ -39,12 +50,17 @@ interface FusionEnAttente {
   saisons: Saison[]
 }
 
+type FiltreUtilisation = 'toutes' | 'inutilisees'
+
 export default function PageIngredients() {
   const [ingredients, setIngredients] = React.useState<Ingredient[]>([])
+  const [utilisations, setUtilisations] = React.useState<Map<string, number>>(new Map())
+  const [filtreUtilisation, setFiltreUtilisation] = React.useState<FiltreUtilisation>('toutes')
   const [loading, setLoading] = React.useState(true)
   const [recherche, setRecherche] = React.useState('')
   const [edition, setEdition] = React.useState<EditionState | null>(null)
   const [saving, setSaving] = React.useState(false)
+  const [suppressionEnCours, setSuppressionEnCours] = React.useState(false)
 
   // Panneau recettes associées
   const [ingrSelectionne, setIngrSelectionne] = React.useState<Ingredient | null>(null)
@@ -60,21 +76,42 @@ export default function PageIngredients() {
     setLoading(true)
     // Supabase plafonne à 1000 lignes par requête : on paginate pour tout récupérer
     const pageSize = 1000
-    let all: Ingredient[] = []
-    let from = 0
-    while (true) {
-      const { data: ingrs } = await supabase
-        .from('ingredients')
-        .select('*')
-        .order('nom')
-        .range(from, from + pageSize - 1)
-      if (!ingrs || ingrs.length === 0) break
-      all = all.concat(ingrs as Ingredient[])
-      if (ingrs.length < pageSize) break
-      from += pageSize
+
+    async function chargerTout<T>(table: string, colonnes: string): Promise<T[]> {
+      let all: T[] = []
+      let from = 0
+      while (true) {
+        const { data } = await supabase.from(table).select(colonnes).range(from, from + pageSize - 1)
+        if (!data || data.length === 0) break
+        all = all.concat(data as T[])
+        if (data.length < pageSize) break
+        from += pageSize
+      }
+      return all
     }
-    setIngredients(all)
+
+    const [ingrs, liaisons] = await Promise.all([
+      chargerTout<Ingredient>('ingredients', '*'),
+      chargerTout<{ ingredient_id: string }>('recette_ingredients', 'ingredient_id'),
+    ])
+
+    const compteur = new Map<string, number>()
+    for (const l of liaisons) {
+      compteur.set(l.ingredient_id, (compteur.get(l.ingredient_id) ?? 0) + 1)
+    }
+
+    setIngredients(ingrs.sort((a, b) => a.nom.localeCompare(b.nom)))
+    setUtilisations(compteur)
     setLoading(false)
+  }
+
+  async function supprimerIngredient(id: string) {
+    setSuppressionEnCours(true)
+    const { error } = await supabase.from('ingredients').delete().eq('id', id)
+    setSuppressionEnCours(false)
+    if (error) { toast.error('Erreur lors de la suppression'); return }
+    toast.success('Ingrédient supprimé')
+    charger()
   }
 
   // ── Panneau recettes associées ────────────────────────────────────────────
@@ -178,9 +215,11 @@ export default function PageIngredients() {
 
   // ── Filtrage ──────────────────────────────────────────────────────────────
 
-  const filtres = recherche
-    ? ingredients.filter((i) => i.nom.toLowerCase().includes(recherche.toLowerCase()))
-    : ingredients
+  const filtres = ingredients
+    .filter((i) => !recherche || i.nom.toLowerCase().includes(recherche.toLowerCase()))
+    .filter((i) => filtreUtilisation === 'toutes' || (utilisations.get(i.id) ?? 0) === 0)
+
+  const nbInutilisees = ingredients.filter((i) => (utilisations.get(i.id) ?? 0) === 0).length
 
   // ── Rendu ─────────────────────────────────────────────────────────────────
 
@@ -198,9 +237,27 @@ export default function PageIngredients() {
         />
       </div>
 
-      <p className="mb-4 text-sm text-muted-foreground">
-        {filtres.length} ingrédient{filtres.length !== 1 ? 's' : ''}
-      </p>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          {filtres.length} ingrédient{filtres.length !== 1 ? 's' : ''}
+        </p>
+        <div className="flex gap-2">
+          <Button
+            variant={filtreUtilisation === 'toutes' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFiltreUtilisation('toutes')}
+          >
+            Tous
+          </Button>
+          <Button
+            variant={filtreUtilisation === 'inutilisees' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFiltreUtilisation('inutilisees')}
+          >
+            Non utilisés {nbInutilisees > 0 && `(${nbInutilisees})`}
+          </Button>
+        </div>
+      </div>
 
       {loading ? (
         <div className="space-y-2">
@@ -218,6 +275,7 @@ export default function PageIngredients() {
                 <th className="px-4 py-3 text-left">Nom</th>
                 <th className="px-4 py-3 text-left">Saisons</th>
                 <th className="px-4 py-3 text-left">Allergènes</th>
+                <th className="px-4 py-3 text-left">Recettes</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -288,6 +346,16 @@ export default function PageIngredients() {
                       </div>
                     </td>
 
+                    {/* Recettes */}
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const nb = utilisations.get(ingr.id) ?? 0
+                        return nb === 0
+                          ? <Badge variant="outline" className="text-xs text-muted-foreground">0 recette</Badge>
+                          : <span className="text-muted-foreground">{nb}</span>
+                      })()}
+                    </td>
+
                     {/* Actions */}
                     <td className="px-4 py-3">
                       {enEdition ? (
@@ -300,9 +368,36 @@ export default function PageIngredients() {
                           </Button>
                         </div>
                       ) : (
-                        <Button size="icon" variant="ghost" onClick={() => commencerEdition(ingr)}>
-                          <PencilIcon className="size-4 text-muted-foreground" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button size="icon" variant="ghost" onClick={() => commencerEdition(ingr)}>
+                            <PencilIcon className="size-4 text-muted-foreground" />
+                          </Button>
+                          {(utilisations.get(ingr.id) ?? 0) === 0 && (
+                            <AlertDialog>
+                              <AlertDialogTrigger
+                                render={
+                                  <Button size="icon" variant="ghost">
+                                    <Trash2Icon className="size-4 text-muted-foreground" />
+                                  </Button>
+                                }
+                              />
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Supprimer «&nbsp;{ingr.nom}&nbsp;» ?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Cet ingrédient n&apos;est utilisé dans aucune recette. La suppression est définitive.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel disabled={suppressionEnCours}>Annuler</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => supprimerIngredient(ingr.id)} disabled={suppressionEnCours}>
+                                    {suppressionEnCours ? 'Suppression…' : 'Supprimer'}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
