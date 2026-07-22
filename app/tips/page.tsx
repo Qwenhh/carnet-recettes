@@ -244,7 +244,7 @@ export default function PageTips() {
 
       {/* ── Dialog création ── */}
       <Dialog open={creationOuverte} onOpenChange={setCreationOuverte}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Nouveau tip</DialogTitle>
           </DialogHeader>
@@ -283,7 +283,7 @@ export default function PageTips() {
 
       {/* ── Dialog détail / édition ── */}
       <Dialog open={!!tipSelectionne} onOpenChange={(open) => { if (!open) fermerTip() }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           {tipSelectionne && (
             modeEdition ? (
               <>
