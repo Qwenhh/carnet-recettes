@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-// Route appelée par le cron Vercel toutes les 5 jours
+// Route appelée par le cron Vercel tous les jours
 // pour éviter la mise en veille automatique de Supabase (free tier)
 
 export async function GET() {
