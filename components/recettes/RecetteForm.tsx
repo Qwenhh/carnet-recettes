@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { PlusIcon, Trash2Icon, GripVerticalIcon } from 'lucide-react'
+import { PlusIcon, Trash2Icon, GripVerticalIcon, ImageIcon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { supabase } from '@/lib/supabase'
@@ -75,6 +75,8 @@ const SAISON_EMOJIS: Record<Saison, string> = {
   Automne: '🍂',
   Hiver: '❄️',
 }
+
+const PHOTO_BUCKET = 'recette-photos'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -157,6 +159,51 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
   const [recherche, setRecherche] = React.useState('')
   const [suggestions, setSuggestions] = React.useState<Ingredient[]>([])
   const [sectionActive, setSectionActive] = React.useState<number>(0)
+
+  // ─── Photo ───────────────────────────────────────────────────────────────
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = React.useState<string | null>(recette?.photo_url ?? null)
+  const [photoSupprimee, setPhotoSupprimee] = React.useState(false)
+  const dossierPhotoRef = React.useRef(
+    recette?.id ?? (typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  )
+
+  React.useEffect(() => {
+    return () => {
+      if (photoPreview?.startsWith('blob:')) URL.revokeObjectURL(photoPreview)
+    }
+  }, [photoPreview])
+
+  function choisirPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { toast.error('Le fichier doit être une image'); return }
+    if (file.size > 10 * 1024 * 1024) { toast.error('Image trop lourde (10 Mo max)'); return }
+    setPhotoFile(file)
+    setPhotoSupprimee(false)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  function supprimerPhoto() {
+    setPhotoFile(null)
+    setPhotoPreview(null)
+    setPhotoSupprimee(true)
+  }
+
+  async function uploaderPhotoSiBesoin(): Promise<string | null> {
+    if (photoFile) {
+      const ext = photoFile.name.split('.').pop() || 'jpg'
+      const chemin = `${dossierPhotoRef.current}/${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(chemin, photoFile, { upsert: true })
+      if (error) throw new Error("Erreur lors de l'envoi de la photo : " + error.message)
+      const { data } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(chemin)
+      return data.publicUrl
+    }
+    if (photoSupprimee) return null
+    return recette?.photo_url ?? null
+  }
 
   const [form, setForm] = React.useState<FormData>(() => {
     if (!recette) return FORM_VIDE
@@ -355,6 +402,15 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
     if (!form.titre.trim()) { toast.error('Le titre est obligatoire'); return }
     setSaving(true)
 
+    let photo_url: string | null
+    try {
+      photo_url = await uploaderPhotoSiBesoin()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de l\'envoi de la photo')
+      setSaving(false)
+      return
+    }
+
     // Nettoyer les sections d'étapes (supprimer étapes vides)
     const etapes_sections_clean = form.etapes_sections
       .map((s) => ({ nom: s.nom, etapes: s.etapes.filter((e) => e.trim()) }))
@@ -364,6 +420,7 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
     const payload = {
       titre: form.titre.trim(),
       descriptif: form.descriptif.trim() || null,
+      photo_url,
       declinaisons: form.declinaisons.trim() || null,
       materiel: form.materiel.trim() || null,
       conservation: form.conservation.trim() || null,
@@ -445,6 +502,36 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
               className="mt-1"
               rows={3}
             />
+          </div>
+          <div>
+            <Label>Photo</Label>
+            <div className="mt-1">
+              {photoPreview ? (
+                <div className="relative w-full max-w-sm">
+                  <img
+                    src={photoPreview}
+                    alt="Aperçu de la recette"
+                    className="h-48 w-full rounded-lg border border-border object-cover"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="absolute right-2 top-2 size-7 bg-background/90"
+                    onClick={supprimerPhoto}
+                    aria-label="Supprimer la photo"
+                  >
+                    <XIcon className="size-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <label className="flex h-32 w-full max-w-sm cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-input text-sm text-muted-foreground hover:bg-muted/40">
+                  <ImageIcon className="size-5" />
+                  Ajouter une photo
+                  <input type="file" accept="image/*" className="hidden" onChange={choisirPhoto} />
+                </label>
+              )}
+            </div>
           </div>
         </div>
       </section>

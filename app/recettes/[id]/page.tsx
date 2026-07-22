@@ -115,6 +115,16 @@ export default async function PageDetail({
         <p className="mb-4 text-base leading-relaxed text-foreground/80">{recette.descriptif}</p>
       )}
 
+      {/* Photo */}
+      {recette.photo_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={recette.photo_url}
+          alt={recette.titre}
+          className="mb-4 h-auto max-h-[420px] w-full rounded-xl border border-border object-cover"
+        />
+      )}
+
       {/* Conseils & concept */}
       {recette.conseils && (
         <div className="mb-4 rounded-lg border border-border bg-secondary/40 px-4 py-3">

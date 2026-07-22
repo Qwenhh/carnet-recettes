@@ -23,6 +23,7 @@ export interface Recette {
   id: string
   titre: string
   descriptif: string | null
+  photo_url: string | null
   declinaisons: string | null
   materiel: string | null       // équipements nécessaires
   conservation: string | null   // durée et mode de conservation

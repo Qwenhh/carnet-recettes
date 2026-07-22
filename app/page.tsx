@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { PlusIcon, SearchIcon, ArrowUpDownIcon, RotateCcwIcon } from 'lucide-react'
+import { PlusIcon, SearchIcon, ArrowUpDownIcon, RotateCcwIcon, ChevronsLeftIcon, ChevronsRightIcon } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
 import { mapRecetteAny } from '@/lib/mappers'
@@ -253,7 +253,10 @@ export default function PageListe() {
                 {recettes.map((r) => <RecetteCard key={r.id} recette={r} />)}
               </div>
               {nbPages > 1 && (
-                <div className="mt-6 flex items-center justify-center gap-3">
+                <div className="mt-6 flex items-center justify-center gap-2">
+                  <Button variant="outline" size="icon" disabled={page === 1} onClick={() => setPage(1)} aria-label="Première page">
+                    <ChevronsLeftIcon className="size-4" />
+                  </Button>
                   <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
                     Précédent
                   </Button>
@@ -273,6 +276,9 @@ export default function PageListe() {
                   </span>
                   <Button variant="outline" size="sm" disabled={page === nbPages} onClick={() => setPage((p) => p + 1)}>
                     Suivant
+                  </Button>
+                  <Button variant="outline" size="icon" disabled={page === nbPages} onClick={() => setPage(nbPages)} aria-label="Dernière page">
+                    <ChevronsRightIcon className="size-4" />
                   </Button>
                 </div>
               )}
