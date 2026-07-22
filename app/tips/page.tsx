@@ -213,11 +213,11 @@ export default function PageTips() {
             {tips.map((tip) => (
               <Card
                 key={tip.id}
-                className="cursor-pointer transition-shadow hover:shadow-md hover:ring-primary/30"
+                className="min-w-0 cursor-pointer transition-shadow hover:shadow-md hover:ring-primary/30"
                 onClick={() => ouvrirTip(tip)}
               >
-                <CardHeader>
-                  <CardTitle className="break-words font-semibold leading-snug">{tip.titre}</CardTitle>
+                <CardHeader className="min-w-0">
+                  <CardTitle className="min-w-0 break-all font-semibold leading-snug">{tip.titre}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="line-clamp-4 whitespace-pre-wrap text-sm text-muted-foreground">
@@ -323,8 +323,8 @@ export default function PageTips() {
               </>
             ) : (
               <>
-                <DialogHeader>
-                  <DialogTitle className="break-words">{tipSelectionne.titre}</DialogTitle>
+                <DialogHeader className="min-w-0">
+                  <DialogTitle className="min-w-0 break-all">{tipSelectionne.titre}</DialogTitle>
                 </DialogHeader>
                 <p className="max-h-[50vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
                   {tipSelectionne.contenu || 'Aucune description.'}
