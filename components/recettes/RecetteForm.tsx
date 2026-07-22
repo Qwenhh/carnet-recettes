@@ -482,6 +482,16 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
   return (
     <form onSubmit={sauvegarder} className="mx-auto max-w-3xl space-y-8">
 
+      {/* Actions (haut) */}
+      <div className="sticky top-16 z-30 -mx-4 flex justify-end gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/60">
+        <Button type="button" variant="outline" onClick={() => router.back()}>
+          Annuler
+        </Button>
+        <Button type="submit" disabled={saving}>
+          {saving ? 'Sauvegarde…' : recette ? 'Mettre à jour' : 'Créer la recette'}
+        </Button>
+      </div>
+
       {/* Informations générales */}
       <section>
         <SectionTitre>Informations générales</SectionTitre>
