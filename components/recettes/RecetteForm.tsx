@@ -849,16 +849,6 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
           rows={4}
         />
       </section>
-
-      {/* Actions */}
-      <div className="flex justify-end gap-3 pt-4">
-        <Button type="button" variant="outline" onClick={() => router.back()}>
-          Annuler
-        </Button>
-        <Button type="submit" disabled={saving}>
-          {saving ? 'Sauvegarde…' : recette ? 'Mettre à jour' : 'Créer la recette'}
-        </Button>
-      </div>
     </form>
   )
 }
