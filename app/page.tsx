@@ -14,6 +14,7 @@ import { RecetteCard } from '@/components/recettes/RecetteCard'
 import { PanneauFiltres } from '@/components/filtres/PanneauFiltres'
 
 const PER_PAGE = 20
+const ETAT_STORAGE_KEY = 'recettes-liste-etat'
 
 type Options = {
   types_plat: string[]
@@ -77,7 +78,42 @@ export default function PageListe() {
   const filtresDebounced = useDebounce(filtres, 300)
   const rechercheDebounced = useDebounce(recherche, 400)
 
-  React.useEffect(() => { setPage(1) }, [filtresDebounced, rechercheDebounced, tri])
+  // Empêche le reset de page et la sauvegarde d'écraser l'état pendant la restauration au montage
+  const restaurationEnCours = React.useRef(true)
+
+  // Restaurer recherche/tri/filtres/page depuis la session au montage (ex: retour depuis une recette)
+  React.useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(ETAT_STORAGE_KEY)
+      if (raw) {
+        const saved = JSON.parse(raw) as Partial<{
+          recherche: string
+          tri: Tri
+          filtres: FiltresRecettes
+          page: number
+        }>
+        if (saved.recherche) setRecherche(saved.recherche)
+        if (saved.tri) setTri(saved.tri)
+        if (saved.filtres) setFiltres(saved.filtres)
+        if (saved.page) setPage(saved.page)
+      }
+    } catch { /* sessionStorage indisponible ou état invalide */ }
+    // Le debounce répercute la restauration après son délai (400ms max) :
+    // on attend un peu plus avant de réactiver le reset de page au changement de filtre
+    const t = setTimeout(() => { restaurationEnCours.current = false }, 500)
+    return () => clearTimeout(t)
+  }, [])
+
+  // Sauvegarder l'état à chaque changement (une fois la restauration terminée)
+  React.useEffect(() => {
+    if (restaurationEnCours.current) return
+    sessionStorage.setItem(ETAT_STORAGE_KEY, JSON.stringify({ recherche, tri, filtres, page }))
+  }, [recherche, tri, filtres, page])
+
+  React.useEffect(() => {
+    if (restaurationEnCours.current) return
+    setPage(1)
+  }, [filtresDebounced, rechercheDebounced, tri])
   React.useEffect(() => { fetchRecettes() }, [filtresDebounced, rechercheDebounced, page, tri]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchRecettes() {
