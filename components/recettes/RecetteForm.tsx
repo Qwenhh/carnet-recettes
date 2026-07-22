@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { MultiSelect } from '@/components/filtres/MultiSelect'
 
@@ -243,7 +242,6 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
     const next = form.sections.filter((_, i) => i !== si)
     set('sections', next)
     const all = tousIngredients(next)
-    set('allergenes', Array.from(new Set(all.flatMap((i) => i.allergenes))))
     set('saisons', Array.from(new Set(all.flatMap((i) => i.saisons))) as Saison[])
     if (sectionActive >= next.length) setSectionActive(Math.max(0, next.length - 1))
   }
@@ -268,7 +266,8 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
     )
     set('sections', nextSections)
     const all = tousIngredients(nextSections)
-    set('allergenes', Array.from(new Set(all.flatMap((i) => i.allergenes))))
+    // Suggestion : on ajoute les allergènes de l'ingrédient sans retirer ceux déjà cochés manuellement
+    set('allergenes', Array.from(new Set([...form.allergenes, ...ingr.allergenes])))
     set('saisons', Array.from(new Set(all.flatMap((i) => i.saisons))) as Saison[])
     setRecherche('')
     setSuggestions([])
@@ -304,7 +303,6 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
     })
     set('sections', next)
     const all = tousIngredients(next)
-    set('allergenes', Array.from(new Set(all.flatMap((i) => i.allergenes))))
     set('saisons', Array.from(new Set(all.flatMap((i) => i.saisons))) as Saison[])
   }
 
@@ -522,15 +520,16 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
               />
             </div>
             <div>
-              <Label className="mb-1 block">Allergènes (déduits des ingrédients)</Label>
-              <div className="flex min-h-9 flex-wrap gap-1 rounded-md border border-input bg-muted px-3 py-2">
-                {form.allergenes.length === 0
-                  ? <span className="text-xs text-muted-foreground">Aucun allergène</span>
-                  : form.allergenes.map((a) => (
-                    <Badge key={a} variant="destructive" className="text-xs">{a}</Badge>
-                  ))
-                }
-              </div>
+              <Label className="mb-1 block">Allergènes</Label>
+              <MultiSelect
+                options={opts.allergenes}
+                selected={form.allergenes}
+                onChange={(v) => set('allergenes', v)}
+                placeholder="Sélectionner…"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Pré-cochés automatiquement depuis les ingrédients, modifiables librement.
+              </p>
             </div>
           </div>
         </div>
