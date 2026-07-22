@@ -71,6 +71,10 @@ export default function PageIngredients() {
   const [fusionAutoOuverte, setFusionAutoOuverte] = React.useState(false)
   const [fusionAutoEnCours, setFusionAutoEnCours] = React.useState(false)
 
+  // Fusion automatique des doublons singulier/pluriel
+  const [fusionPlurielOuverte, setFusionPlurielOuverte] = React.useState(false)
+  const [fusionPlurielEnCours, setFusionPlurielEnCours] = React.useState(false)
+
   // Fusion en attente de confirmation
   const [fusionEnAttente, setFusionEnAttente] = React.useState<FusionEnAttente | null>(null)
 
@@ -157,6 +161,66 @@ export default function PageIngredients() {
 
     setFusionAutoEnCours(false)
     setFusionAutoOuverte(false)
+    if (nbErreurs > 0) toast.error(`${nbFusions} fusion(s) réussie(s), ${nbErreurs} erreur(s)`)
+    else toast.success(`${nbFusions} doublon(s) fusionné(s) !`)
+    charger()
+  }
+
+  // ── Doublons singulier/pluriel (ex: "carotte" / "carottes") ─────────────────
+  // Heuristique : on compare les noms en retirant un éventuel "s" ou "x" final.
+  // Ça reste une heuristique (ex: "cassis" n'a pas de singulier) donc une
+  // prévisualisation est affichée avant toute fusion.
+
+  function racineSingulier(nom: string): string {
+    const lower = nom.toLowerCase().trim()
+    if (lower.length > 3 && (lower.endsWith('s') || lower.endsWith('x'))) {
+      return lower.slice(0, -1)
+    }
+    return lower
+  }
+
+  const groupesDoublonsPluriel = React.useMemo(() => {
+    const parCle = new Map<string, Ingredient[]>()
+    for (const i of ingredients) {
+      const cle = racineSingulier(i.nom)
+      if (!parCle.has(cle)) parCle.set(cle, [])
+      parCle.get(cle)!.push(i)
+    }
+    return Array.from(parCle.values())
+      // On ne garde que les groupes avec une vraie différence d'orthographe
+      // (les doublons de simple casse sont déjà gérés par l'outil dédié)
+      .filter((groupe) => groupe.length > 1 && new Set(groupe.map((i) => i.nom.toLowerCase())).size > 1)
+  }, [ingredients])
+
+  async function fusionnerDoublonsPluriel() {
+    setFusionPlurielEnCours(true)
+    let nbFusions = 0
+    let nbErreurs = 0
+
+    for (const groupe of groupesDoublonsPluriel) {
+      // Cible : le plus utilisé ; à égalité, le plus court (généralement le singulier)
+      const trie = [...groupe].sort((a, b) => {
+        const diffUsage = (utilisations.get(b.id) ?? 0) - (utilisations.get(a.id) ?? 0)
+        if (diffUsage !== 0) return diffUsage
+        const diffLongueur = a.nom.length - b.nom.length
+        return diffLongueur !== 0 ? diffLongueur : a.nom.localeCompare(b.nom)
+      })
+      const cible = trie[0]
+      const saisonsUnion = Array.from(new Set(groupe.flatMap((i) => i.saisons))) as Saison[]
+
+      for (const doublon of trie.slice(1)) {
+        const { error } = await supabase.rpc('fusionner_ingredients', {
+          p_ancien_id: doublon.id,
+          p_cible_id: cible.id,
+          p_saisons: saisonsUnion,
+        })
+        if (error) nbErreurs++
+        else nbFusions++
+      }
+    }
+
+    setFusionPlurielEnCours(false)
+    setFusionPlurielOuverte(false)
     if (nbErreurs > 0) toast.error(`${nbFusions} fusion(s) réussie(s), ${nbErreurs} erreur(s)`)
     else toast.success(`${nbFusions} doublon(s) fusionné(s) !`)
     charger()
@@ -275,12 +339,20 @@ export default function PageIngredients() {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold">Ingrédients</h1>
-        {groupesDoublonsCasse.length > 0 && (
-          <Button variant="outline" size="sm" onClick={() => setFusionAutoOuverte(true)}>
-            <WandSparklesIcon className="size-4" />
-            Fusionner les doublons de casse ({groupesDoublonsCasse.length})
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {groupesDoublonsCasse.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setFusionAutoOuverte(true)}>
+              <WandSparklesIcon className="size-4" />
+              Fusionner les doublons de casse ({groupesDoublonsCasse.length})
+            </Button>
+          )}
+          {groupesDoublonsPluriel.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setFusionPlurielOuverte(true)}>
+              <WandSparklesIcon className="size-4" />
+              Fusionner singulier/pluriel ({groupesDoublonsPluriel.length})
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="relative mb-6">
@@ -554,6 +626,34 @@ export default function PageIngredients() {
             <AlertDialogCancel disabled={fusionAutoEnCours}>Annuler</AlertDialogCancel>
             <AlertDialogAction onClick={fusionnerDoublonsCasse} disabled={fusionAutoEnCours}>
               {fusionAutoEnCours ? 'Fusion…' : 'Fusionner tout'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Fusion automatique des doublons singulier/pluriel ── */}
+      <AlertDialog open={fusionPlurielOuverte} onOpenChange={setFusionPlurielOuverte}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Fusionner {groupesDoublonsPluriel.length} doublon{groupesDoublonsPluriel.length > 1 ? 's' : ''} ?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Détection basée sur un "s"/"x" final — à vérifier avant de valider. L&apos;ingrédient le
+              plus utilisé est conservé (à égalité, le plus court), les autres sont fusionnés dedans et supprimés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="max-h-64 space-y-1.5 overflow-y-auto rounded-lg bg-muted/50 p-3 text-sm">
+            {groupesDoublonsPluriel.map((groupe) => (
+              <li key={groupe.map((i) => i.id).join('-')} className="text-muted-foreground">
+                {groupe.map((i) => i.nom).join(' / ')}
+              </li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={fusionPlurielEnCours}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={fusionnerDoublonsPluriel} disabled={fusionPlurielEnCours}>
+              {fusionPlurielEnCours ? 'Fusion…' : 'Fusionner tout'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
