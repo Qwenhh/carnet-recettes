@@ -217,7 +217,7 @@ export default function PageTips() {
                 onClick={() => ouvrirTip(tip)}
               >
                 <CardHeader>
-                  <CardTitle className="font-semibold leading-snug">{tip.titre}</CardTitle>
+                  <CardTitle className="break-words font-semibold leading-snug">{tip.titre}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="line-clamp-4 whitespace-pre-wrap text-sm text-muted-foreground">
@@ -324,7 +324,7 @@ export default function PageTips() {
             ) : (
               <>
                 <DialogHeader>
-                  <DialogTitle>{tipSelectionne.titre}</DialogTitle>
+                  <DialogTitle className="break-words">{tipSelectionne.titre}</DialogTitle>
                 </DialogHeader>
                 <p className="max-h-[50vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
                   {tipSelectionne.contenu || 'Aucune description.'}
