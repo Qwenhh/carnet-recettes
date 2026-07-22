@@ -80,8 +80,10 @@ export default function PageIngredients() {
 
   React.useEffect(() => { charger() }, [])
 
-  async function charger() {
-    setLoading(true)
+  async function charger(options: { silencieux?: boolean } = {}) {
+    // Rafraîchissement après une action (fusion, suppression…) : pas de squelette
+    // de chargement, pour ne pas faire sauter la page en haut de la liste.
+    if (!options.silencieux) setLoading(true)
     // Supabase plafonne à 1000 lignes par requête : on paginate pour tout récupérer
     const pageSize = 1000
 
@@ -119,7 +121,7 @@ export default function PageIngredients() {
     setSuppressionEnCours(false)
     if (error) { toast.error('Erreur lors de la suppression'); return }
     toast.success('Ingrédient supprimé')
-    charger()
+    charger({ silencieux: true })
   }
 
   // ── Doublons de casse (ex: "ail" / "Ail") ───────────────────────────────────
@@ -163,7 +165,7 @@ export default function PageIngredients() {
     setFusionAutoOuverte(false)
     if (nbErreurs > 0) toast.error(`${nbFusions} fusion(s) réussie(s), ${nbErreurs} erreur(s)`)
     else toast.success(`${nbFusions} doublon(s) fusionné(s) !`)
-    charger()
+    charger({ silencieux: true })
   }
 
   // ── Doublons singulier/pluriel (ex: "carotte" / "carottes") ─────────────────
@@ -233,7 +235,7 @@ export default function PageIngredients() {
     setFusionPlurielOuverte(false)
     if (nbErreurs > 0) toast.error(`${nbFusions} fusion(s) réussie(s), ${nbErreurs} erreur(s)`)
     else toast.success(`${nbFusions} doublon(s) fusionné(s) !`)
-    charger()
+    charger({ silencieux: true })
   }
 
   // ── Panneau recettes associées ────────────────────────────────────────────
@@ -305,7 +307,7 @@ export default function PageIngredients() {
     toast.success('Ingrédient mis à jour')
     setEdition(null)
     setSaving(false)
-    charger()
+    charger({ silencieux: true })
   }
 
   // ── Fusion ────────────────────────────────────────────────────────────────
@@ -332,7 +334,7 @@ export default function PageIngredients() {
     setFusionEnAttente(null)
     setEdition(null)
     setSaving(false)
-    charger()
+    charger({ silencieux: true })
   }
 
   // ── Filtrage ──────────────────────────────────────────────────────────────
