@@ -167,22 +167,32 @@ export default function PageIngredients() {
   }
 
   // ── Doublons singulier/pluriel (ex: "carotte" / "carottes") ─────────────────
-  // Heuristique : on compare les noms en retirant un éventuel "s" ou "x" final.
-  // Ça reste une heuristique (ex: "cassis" n'a pas de singulier) donc une
-  // prévisualisation est affichée avant toute fusion.
+  // Heuristique : on compare chaque MOT du nom en retirant un éventuel "s"/"x"
+  // final, pas seulement la fin de la chaîne entière — pour attraper les cas
+  // comme "Pommes de terre" / "Pomme de terre" (le "s" n'est pas en dernière
+  // position). Ça reste une heuristique donc une prévisualisation est affichée
+  // avant toute fusion.
 
-  function racineSingulier(nom: string): string {
-    const lower = nom.toLowerCase().trim()
-    if (lower.length > 3 && (lower.endsWith('s') || lower.endsWith('x'))) {
-      return lower.slice(0, -1)
+  function racineSingulierMot(mot: string): string {
+    if (mot.length > 3 && (mot.endsWith('s') || mot.endsWith('x'))) {
+      return mot.slice(0, -1)
     }
-    return lower
+    return mot
+  }
+
+  function cleSingulierPluriel(nom: string): string {
+    return nom
+      .toLowerCase()
+      .trim()
+      .split(/\s+/)
+      .map(racineSingulierMot)
+      .join(' ')
   }
 
   const groupesDoublonsPluriel = React.useMemo(() => {
     const parCle = new Map<string, Ingredient[]>()
     for (const i of ingredients) {
-      const cle = racineSingulier(i.nom)
+      const cle = cleSingulierPluriel(i.nom)
       if (!parCle.has(cle)) parCle.set(cle, [])
       parCle.get(cle)!.push(i)
     }
