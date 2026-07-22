@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { PlusIcon, SearchIcon, ArrowUpDownIcon } from 'lucide-react'
+import { PlusIcon, SearchIcon, ArrowUpDownIcon, RotateCcwIcon } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
 import { mapRecetteAny } from '@/lib/mappers'
@@ -170,6 +170,16 @@ export default function PageListe() {
   }
 
   const nbPages = Math.ceil(total / PER_PAGE)
+  const filtresActifs = JSON.stringify(filtres) !== JSON.stringify(FILTRES_DEFAUT)
+
+  const [pageInput, setPageInput] = React.useState(String(page))
+  React.useEffect(() => { setPageInput(String(page)) }, [page])
+
+  function allerALaPage(valeur: string) {
+    const n = parseInt(valeur, 10)
+    if (!isNaN(n) && n >= 1 && n <= nbPages) setPage(n)
+    else setPageInput(String(page))
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -207,6 +217,14 @@ export default function PageListe() {
           </select>
           <ArrowUpDownIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         </div>
+
+        {/* Réinitialiser les filtres */}
+        {filtresActifs && (
+          <Button variant="outline" size="sm" onClick={() => setFiltres(FILTRES_DEFAUT)} className="gap-1 shrink-0">
+            <RotateCcwIcon className="size-3.5" />
+            <span className="hidden sm:inline">Réinitialiser les filtres</span>
+          </Button>
+        )}
       </div>
 
       {/* Layout */}
@@ -239,7 +257,20 @@ export default function PageListe() {
                   <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
                     Précédent
                   </Button>
-                  <span className="text-sm text-muted-foreground">Page {page} / {nbPages}</span>
+                  <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    Page
+                    <input
+                      type="number"
+                      min={1}
+                      max={nbPages}
+                      value={pageInput}
+                      onChange={(e) => setPageInput(e.target.value)}
+                      onBlur={(e) => allerALaPage(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur() } }}
+                      className="h-7 w-14 rounded-md border border-input bg-background text-center text-sm text-foreground [appearance:textfield] focus:outline-none focus:ring-2 focus:ring-ring [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    / {nbPages}
+                  </span>
                   <Button variant="outline" size="sm" disabled={page === nbPages} onClick={() => setPage((p) => p + 1)}>
                     Suivant
                   </Button>
