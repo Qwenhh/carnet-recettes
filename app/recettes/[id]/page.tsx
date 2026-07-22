@@ -34,7 +34,7 @@ export default async function PageDetail({
 
   const { data, error } = await supabase
     .from('recettes')
-    .select('*, recette_ingredients(quantite, unite, groupe, ordre, ingredients(id, nom, famille, saisons, allergenes))')
+    .select('*, recette_ingredients(quantite, unite, groupe, ordre, ingredients(id, nom, saisons, allergenes))')
     .eq('id', id)
     .single()
 
@@ -208,31 +208,17 @@ export default async function PageDetail({
         </section>
       </div>
 
-      {/* Techniques + Allergènes */}
-      {(recette.techniques.length > 0 || recette.allergenes.length > 0) && (
+      {/* Allergènes */}
+      {recette.allergenes.length > 0 && (
         <>
           <Separator className="my-6" />
-          <div className="flex flex-wrap gap-6">
-            {recette.techniques.length > 0 && (
-              <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Techniques</p>
-                <div className="flex flex-wrap gap-1">
-                  {recette.techniques.map((t) => (
-                    <Badge key={t} variant="secondary">{t}</Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-            {recette.allergenes.length > 0 && (
-              <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Allergènes</p>
-                <div className="flex flex-wrap gap-1">
-                  {recette.allergenes.map((a) => (
-                    <Badge key={a} variant="destructive">{a}</Badge>
-                  ))}
-                </div>
-              </div>
-            )}
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Allergènes</p>
+            <div className="flex flex-wrap gap-1">
+              {recette.allergenes.map((a) => (
+                <Badge key={a} variant="destructive">{a}</Badge>
+              ))}
+            </div>
           </div>
         </>
       )}

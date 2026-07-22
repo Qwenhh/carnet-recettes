@@ -31,9 +31,6 @@ export function RecetteCard({ recette }: RecetteCardProps) {
     (recette.temps_cuisson ?? 0) +
     (recette.temps_repos ?? 0)
 
-  const techniquesAffichees = recette.techniques.slice(0, 2)
-  const techniquesSup = recette.techniques.length - 2
-
   return (
     <Link href={`/recettes/${recette.id}`} className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl">
       <Card className="h-full transition-shadow hover:shadow-md hover:ring-primary/30">
@@ -79,20 +76,6 @@ export function RecetteCard({ recette }: RecetteCardProps) {
               </span>
             )}
           </div>
-
-          {/* Techniques */}
-          {recette.techniques.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {techniquesAffichees.map((t) => (
-                <Badge key={t} variant="secondary">
-                  {t}
-                </Badge>
-              ))}
-              {techniquesSup > 0 && (
-                <Badge variant="secondary">+{techniquesSup}</Badge>
-              )}
-            </div>
-          )}
 
           {/* Allergènes */}
           {recette.allergenes.length > 0 && (

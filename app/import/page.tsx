@@ -16,7 +16,6 @@ interface IngredientImport {
   quantite?: string
   unite?: string
   groupe?: string   // nom de la section (ex: "Émulsion", "Maki de poireau")
-  famille?: string
   saisons?: string[]
   allergenes?: string[]
 }
@@ -38,7 +37,6 @@ interface RecetteImport {
   temps_cuisson?: number
   temps_repos?: number
   types_plat?: string[]
-  techniques?: string[]
   saisons?: string[]
   contraintes_alimentaires?: string[]
   etapes_sections?: EtapeSectionImport[]
@@ -83,7 +81,6 @@ En cas de doute sur une suite : regarde la photo suivante avant de conclure.
 - nb_personnes : entier
 - temps_preparation, temps_cuisson, temps_repos : entiers en minutes
 - types_plat : tableau parmi → Entrée, Plat, Dessert, Snack, Sauce, Base, Boisson
-- techniques : tableau de techniques (ex: ["Cuisson vapeur", "Émulsion", "Façonnage"])
 - saisons : tableau parmi → Printemps, Été, Automne, Hiver
 - contraintes_alimentaires : tableau (ex: ["Vegan", "Sans gluten", "Sans lactose"])
 
@@ -118,7 +115,6 @@ Quand tu as parcouru TOUTES les photos, retourne UN SEUL tableau JSON avec toute
     "temps_preparation": 20,
     "temps_cuisson": 60,
     "temps_repos": 30,
-    "techniques": ["Cuisson en bouillon"],
     "contraintes_alimentaires": ["Vegan"],
     "ingredients": [
       { "nom": "Oignon", "quantite": "2", "unite": "pièces", "groupe": "Bouillon" },
@@ -175,7 +171,6 @@ function normaliserIngredients(raw: any[]): IngredientImport[] {
           quantite: ing.quantite,
           unite: ing.unite,
           groupe: item.groupe ?? ing.groupe ?? undefined,
-          famille: ing.famille,
           saisons: ing.saisons,
           allergenes: ing.allergenes,
         })
@@ -289,7 +284,6 @@ export default function PageImport() {
             temps_cuisson: rec.temps_cuisson ?? null,
             temps_repos: rec.temps_repos ?? null,
             types_plat: toArray(rec.types_plat),
-            techniques: toArray(rec.techniques),
             saisons: toArray(rec.saisons),
             contraintes_alimentaires: toArray(rec.contraintes_alimentaires),
             allergenes,
@@ -306,7 +300,7 @@ export default function PageImport() {
           const nomsUniques = Array.from(new Set(ingredients.map((i) => i.nom)))
           const payloadIngredients = nomsUniques.map((nom) => {
             const ing = ingredients.find((i) => i.nom === nom)!
-            return { nom, famille: ing.famille ?? null, saisons: ing.saisons ?? [], allergenes: ing.allergenes ?? [] }
+            return { nom, saisons: ing.saisons ?? [], allergenes: ing.allergenes ?? [] }
           })
 
           const { data: ingrsData, error: errIngrs } = await supabase

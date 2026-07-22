@@ -9,11 +9,11 @@ export async function GET() {
     .select(`
       titre, descriptif, declinaisons, materiel, conservation, conseils,
       nb_personnes, temps_preparation, temps_cuisson, temps_repos,
-      types_plat, techniques, saisons, contraintes_alimentaires,
+      types_plat, saisons, contraintes_alimentaires,
       etapes, etapes_sections,
       recette_ingredients (
         quantite, unite, groupe, ordre,
-        ingredients ( nom, famille )
+        ingredients ( nom )
       )
     `)
     .order('titre', { ascending: true })
@@ -35,7 +35,6 @@ export async function GET() {
         quantite: ri.quantite || undefined,
         unite: ri.unite || undefined,
         groupe: ri.groupe || undefined,
-        famille: ri.ingredients.famille || undefined,
       }))
 
     // Étapes : priorité à etapes_sections
@@ -59,7 +58,6 @@ export async function GET() {
       ...(r.temps_cuisson && { temps_cuisson: r.temps_cuisson }),
       ...(r.temps_repos && { temps_repos: r.temps_repos }),
       ...(r.types_plat?.length && { types_plat: r.types_plat }),
-      ...(r.techniques?.length && { techniques: r.techniques }),
       ...(r.saisons?.length && { saisons: r.saisons }),
       ...(r.contraintes_alimentaires?.length && { contraintes_alimentaires: r.contraintes_alimentaires }),
       ...(etapes_sections && { etapes_sections }),

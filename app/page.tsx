@@ -17,10 +17,8 @@ const PER_PAGE = 20
 
 type Options = {
   types_plat: string[]
-  techniques: string[]
   contraintes_alimentaires: string[]
   allergenes: string[]
-  familles: string[]
 }
 
 type Tri = 'recent' | 'ancien' | 'alpha'
@@ -54,10 +52,8 @@ export default function PageListe() {
   const [filtres, setFiltres] = React.useState<FiltresRecettes>(FILTRES_DEFAUT)
   const [options, setOptions] = React.useState<Options>({
     types_plat: [],
-    techniques: [],
     contraintes_alimentaires: [],
     allergenes: [],
-    familles: [],
   })
 
   React.useEffect(() => {
@@ -67,13 +63,11 @@ export default function PageListe() {
         .select('nom, type')
         .order('nom')
       if (!data) return
-      const grouped: Options = { types_plat: [], techniques: [], contraintes_alimentaires: [], allergenes: [], familles: [] }
+      const grouped: Options = { types_plat: [], contraintes_alimentaires: [], allergenes: [] }
       for (const item of data) {
         if (item.type === 'type_plat') grouped.types_plat.push(item.nom)
-        else if (item.type === 'technique') grouped.techniques.push(item.nom)
         else if (item.type === 'contrainte_alimentaire') grouped.contraintes_alimentaires.push(item.nom)
         else if (item.type === 'allergene') grouped.allergenes.push(item.nom)
-        else if (item.type === 'famille_ingredient') grouped.familles.push(item.nom)
       }
       setOptions(grouped)
     }
@@ -101,7 +95,7 @@ export default function PageListe() {
     // ── Requête principale ──
     let query = supabase
       .from('recettes')
-      .select('*, recette_ingredients(quantite, unite, groupe, ordre, ingredients(id, nom, famille, saisons, allergenes))', { count: 'exact' })
+      .select('*, recette_ingredients(quantite, unite, groupe, ordre, ingredients(id, nom, saisons, allergenes))', { count: 'exact' })
 
     // Tri
     if (tri === 'recent') query = query.order('created_at', { ascending: false })
@@ -123,7 +117,6 @@ export default function PageListe() {
     // Filtres
     if (filtresDebounced.saisons.length) query = query.overlaps('saisons', filtresDebounced.saisons)
     if (filtresDebounced.types_plat.length) query = query.overlaps('types_plat', filtresDebounced.types_plat)
-    if (filtresDebounced.techniques.length) query = query.overlaps('techniques', filtresDebounced.techniques)
     if (filtresDebounced.contraintes_alimentaires.length) query = query.overlaps('contraintes_alimentaires', filtresDebounced.contraintes_alimentaires)
     if (filtresDebounced.allergenes_exclure.length) query = query.not('allergenes', 'ov', `{${filtresDebounced.allergenes_exclure.join(',')}}`)
     if (filtresDebounced.temps_preparation_max < 240) query = query.lte('temps_preparation', filtresDebounced.temps_preparation_max)

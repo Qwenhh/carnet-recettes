@@ -5,7 +5,6 @@ import type { Recette, Ingredient, Saison, EtapeSection } from '@/types'
 interface RawIngredient {
   id: string
   nom: string
-  famille: string | null
   saisons: string[]
   allergenes: string[]
 }
@@ -31,7 +30,6 @@ interface RawRecette {
   temps_cuisson: number | null
   temps_repos: number | null
   types_plat: string[]
-  techniques: string[]
   saisons: string[]
   contraintes_alimentaires: string[]
   allergenes: string[]
@@ -113,7 +111,6 @@ export function mapRecette(raw: RawRecette): Recette {
       ingredient: {
         id: ri.ingredients.id,
         nom: ri.ingredients.nom,
-        famille: ri.ingredients.famille ?? '',
         saisons: (ri.ingredients.saisons ?? []) as Saison[],
         allergenes: ri.ingredients.allergenes ?? [],
       } satisfies Ingredient,

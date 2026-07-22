@@ -44,7 +44,6 @@ interface FormData {
   temps_cuisson: string
   temps_repos: string
   types_plat: string[]
-  techniques: string[]
   saisons: Saison[]
   contraintes_alimentaires: string[]
   allergenes: string[]
@@ -64,7 +63,6 @@ const FORM_VIDE: FormData = {
   temps_cuisson: '',
   temps_repos: '',
   types_plat: [],
-  techniques: [],
   saisons: [],
   contraintes_alimentaires: [],
   allergenes: [],
@@ -152,7 +150,6 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
 
   const [opts, setOpts] = React.useState({
     types_plat: [] as string[],
-    techniques: [] as string[],
     contraintes_alimentaires: [] as string[],
     allergenes: [] as string[],
   })
@@ -176,7 +173,6 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
       temps_cuisson: recette.temps_cuisson?.toString() ?? '',
       temps_repos: recette.temps_repos?.toString() ?? '',
       types_plat: recette.types_plat,
-      techniques: recette.techniques,
       saisons: recette.saisons,
       contraintes_alimentaires: recette.contraintes_alimentaires,
       allergenes: recette.allergenes,
@@ -197,10 +193,9 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
         supabase.from('ingredients').select('*').order('nom'),
       ])
       if (listes) {
-        const o = { types_plat: [] as string[], techniques: [] as string[], contraintes_alimentaires: [] as string[], allergenes: [] as string[] }
+        const o = { types_plat: [] as string[], contraintes_alimentaires: [] as string[], allergenes: [] as string[] }
         for (const item of listes) {
           if (item.type === 'type_plat') o.types_plat.push(item.nom)
-          else if (item.type === 'technique') o.techniques.push(item.nom)
           else if (item.type === 'contrainte_alimentaire') o.contraintes_alimentaires.push(item.nom)
           else if (item.type === 'allergene') o.allergenes.push(item.nom)
         }
@@ -380,7 +375,6 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
       temps_cuisson: form.temps_cuisson ? parseInt(form.temps_cuisson) : null,
       temps_repos: form.temps_repos ? parseInt(form.temps_repos) : null,
       types_plat: form.types_plat,
-      techniques: form.techniques,
       saisons: form.saisons,
       contraintes_alimentaires: form.contraintes_alimentaires,
       allergenes: form.allergenes,
@@ -519,15 +513,6 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
               />
             </div>
             <div>
-              <Label className="mb-1 block">Techniques</Label>
-              <MultiSelect
-                options={opts.techniques}
-                selected={form.techniques}
-                onChange={(v) => set('techniques', v)}
-                placeholder="Sélectionner…"
-              />
-            </div>
-            <div>
               <Label className="mb-1 block">Contraintes alimentaires</Label>
               <MultiSelect
                 options={opts.contraintes_alimentaires}
@@ -610,7 +595,6 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
                           onClick={() => selectionnerIngredient(s)}
                         >
                           <span>{s.nom}</span>
-                          {s.famille && <span className="text-xs text-muted-foreground">{s.famille}</span>}
                         </button>
                       ))}
                       <button

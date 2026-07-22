@@ -23,7 +23,6 @@ const SAISON_EMOJIS: Record<Saison, string> = {
 interface EditionState {
   id: string
   nom: string
-  famille: string
   saisons: Saison[]
 }
 
@@ -37,7 +36,6 @@ interface FusionEnAttente {
   ancienNom: string
   cibleId: string
   cibleNom: string
-  famille: string
   saisons: Saison[]
 }
 
@@ -46,7 +44,6 @@ export default function PageIngredients() {
   const [loading, setLoading] = React.useState(true)
   const [recherche, setRecherche] = React.useState('')
   const [edition, setEdition] = React.useState<EditionState | null>(null)
-  const [familles, setFamilles] = React.useState<string[]>([])
   const [saving, setSaving] = React.useState(false)
 
   // Panneau recettes associées
@@ -61,12 +58,8 @@ export default function PageIngredients() {
 
   async function charger() {
     setLoading(true)
-    const [{ data: ingrs }, { data: listes }] = await Promise.all([
-      supabase.from('ingredients').select('*').order('nom'),
-      supabase.from('listes_reference').select('nom').eq('type', 'famille_ingredient').order('nom'),
-    ])
+    const { data: ingrs } = await supabase.from('ingredients').select('*').order('nom')
     setIngredients((ingrs as Ingredient[]) ?? [])
-    setFamilles(listes?.map((l) => l.nom) ?? [])
     setLoading(false)
   }
 
@@ -90,7 +83,7 @@ export default function PageIngredients() {
   // ── Édition ───────────────────────────────────────────────────────────────
 
   function commencerEdition(ingr: Ingredient) {
-    setEdition({ id: ingr.id, nom: ingr.nom, famille: ingr.famille ?? '', saisons: ingr.saisons as Saison[] })
+    setEdition({ id: ingr.id, nom: ingr.nom, saisons: ingr.saisons as Saison[] })
   }
 
   function annulerEdition() { setEdition(null) }
@@ -122,7 +115,6 @@ export default function PageIngredients() {
           ancienNom: ingrOriginal.nom,
           cibleId: doublon.id,
           cibleNom: doublon.nom,
-          famille: edition.famille,
           saisons: edition.saisons,
         })
         setSaving(false)
@@ -133,7 +125,7 @@ export default function PageIngredients() {
     // Pas de doublon : simple mise à jour
     const { error } = await supabase
       .from('ingredients')
-      .update({ nom: nomNormalise, famille: edition.famille || null, saisons: edition.saisons })
+      .update({ nom: nomNormalise, saisons: edition.saisons })
       .eq('id', edition.id)
 
     if (error) { toast.error('Erreur lors de la sauvegarde'); setSaving(false); return }
@@ -148,13 +140,12 @@ export default function PageIngredients() {
   async function executerFusion() {
     if (!fusionEnAttente) return
     setSaving(true)
-    const { ancienId, cibleId, famille, saisons } = fusionEnAttente
+    const { ancienId, cibleId, saisons } = fusionEnAttente
 
     // Fusion exécutée côté base de données en une transaction atomique
     const { error } = await supabase.rpc('fusionner_ingredients', {
       p_ancien_id: ancienId,
       p_cible_id: cibleId,
-      p_famille: famille || null,
       p_saisons: saisons,
     })
 
@@ -211,7 +202,6 @@ export default function PageIngredients() {
             <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 text-left">Nom</th>
-                <th className="px-4 py-3 text-left">Famille</th>
                 <th className="px-4 py-3 text-left">Saisons</th>
                 <th className="px-4 py-3 text-left">Allergènes</th>
                 <th className="px-4 py-3" />
@@ -241,24 +231,6 @@ export default function PageIngredients() {
                           {ingr.nom}
                           <ChevronRightIcon className="size-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                         </button>
-                      )}
-                    </td>
-
-                    {/* Famille */}
-                    <td className="px-4 py-3">
-                      {enEdition ? (
-                        <select
-                          value={edition.famille}
-                          onChange={(e) => setEdition({ ...edition, famille: e.target.value })}
-                          className="rounded-md border border-input bg-background px-2 py-1 text-sm"
-                        >
-                          <option value="">—</option>
-                          {familles.map((f) => (
-                            <option key={f} value={f}>{f}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-muted-foreground">{ingr.famille || '—'}</span>
                       )}
                     </td>
 

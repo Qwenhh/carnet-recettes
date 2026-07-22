@@ -3,7 +3,6 @@
 export interface Ingredient {
   id: string
   nom: string
-  famille: string
   saisons: Saison[]
   allergenes: string[]
 }
@@ -33,7 +32,6 @@ export interface Recette {
   temps_cuisson: number | null
   temps_repos: number | null
   types_plat: string[]
-  techniques: string[]
   saisons: Saison[]
   contraintes_alimentaires: string[]
   allergenes: string[]
@@ -57,19 +55,15 @@ export interface ListeReference {
 
 export type TypeListe =
   | 'allergene'
-  | 'technique'
   | 'contrainte_alimentaire'
   | 'type_plat'
-  | 'famille_ingredient'
 
 // ─── Filtres ───────────────────────────────────────────────────────────────
 
 export interface FiltresRecettes {
   ingredients: string[]
-  familles: string[]
   saisons: Saison[]
   types_plat: string[]
-  techniques: string[]
   contraintes_alimentaires: string[]
   allergenes_inclure: string[]
   allergenes_exclure: string[]
@@ -80,10 +74,8 @@ export interface FiltresRecettes {
 
 export const FILTRES_DEFAUT: FiltresRecettes = {
   ingredients: [],
-  familles: [],
   saisons: [],
   types_plat: [],
-  techniques: [],
   contraintes_alimentaires: [],
   allergenes_inclure: [],
   allergenes_exclure: [],

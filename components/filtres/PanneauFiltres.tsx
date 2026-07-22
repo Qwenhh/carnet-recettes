@@ -22,10 +22,8 @@ interface Props {
   onChange: (f: Partial<FiltresRecettes>) => void
   options: {
     types_plat: string[]
-    techniques: string[]
     contraintes_alimentaires: string[]
     allergenes: string[]
-    familles: string[]
   }
   nbResultats: number
 }
@@ -48,7 +46,6 @@ function compterFiltresActifs(filtres: FiltresRecettes): number {
   let n = 0
   if (filtres.saisons.length) n++
   if (filtres.types_plat.length) n++
-  if (filtres.techniques.length) n++
   if (filtres.contraintes_alimentaires.length) n++
   if (filtres.allergenes_exclure.length) n++
   if (filtres.temps_preparation_max < 240) n++
@@ -124,17 +121,6 @@ function ContenuFiltres({ filtres, onChange, options, nbResultats }: Props) {
           selected={filtres.types_plat}
           onChange={(v) => onChange({ types_plat: v })}
           placeholder="Tous les types"
-        />
-      </section>
-
-      {/* Techniques */}
-      <section>
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Techniques</p>
-        <MultiSelect
-          options={options.techniques}
-          selected={filtres.techniques}
-          onChange={(v) => onChange({ techniques: v })}
-          placeholder="Toutes les techniques"
         />
       </section>
 

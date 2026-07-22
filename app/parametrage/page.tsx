@@ -29,9 +29,7 @@ interface Item {
 const SECTIONS: { type: TypeListe; label: string; description: string }[] = [
   { type: 'allergene', label: 'Allergènes', description: '14 allergènes réglementaires européens + vos ajouts' },
   { type: 'type_plat', label: 'Types de plat', description: 'Entrée, plat, dessert, sauce…' },
-  { type: 'technique', label: 'Techniques', description: 'Snacké, braisé, basse température…' },
   { type: 'contrainte_alimentaire', label: 'Contraintes alimentaires', description: 'Sans gluten, vegan…' },
-  { type: 'famille_ingredient', label: "Familles d'ingrédients", description: 'Légume, viande, poisson…' },
 ]
 
 function SectionListe({
