@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, Leaf, Settings, Upload } from 'lucide-react'
+import { BookOpen, Leaf, Lightbulb, Settings, Upload } from 'lucide-react'
 
 const navItems = [
-  { href: '/',            label: 'Recettes',     icon: BookOpen },
-  { href: '/ingredients', label: 'Ingrédients',  icon: Leaf     },
-  { href: '/import',      label: 'Import',       icon: Upload   },
-  { href: '/parametrage', label: 'Paramétrage',  icon: Settings },
+  { href: '/',            label: 'Recettes',     icon: BookOpen  },
+  { href: '/ingredients', label: 'Ingrédients',  icon: Leaf      },
+  { href: '/tips',        label: 'Tips',         icon: Lightbulb },
+  { href: '/import',      label: 'Import',       icon: Upload    },
+  { href: '/parametrage', label: 'Paramétrage',  icon: Settings  },
 ]
 
 export function NavBar() {

@@ -19,6 +19,14 @@ export interface EtapeSection {
   etapes: string[]
 }
 
+export interface Tip {
+  id: string
+  titre: string
+  contenu: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Recette {
   id: string
   titre: string
