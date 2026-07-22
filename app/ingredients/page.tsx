@@ -58,8 +58,22 @@ export default function PageIngredients() {
 
   async function charger() {
     setLoading(true)
-    const { data: ingrs } = await supabase.from('ingredients').select('*').order('nom')
-    setIngredients((ingrs as Ingredient[]) ?? [])
+    // Supabase plafonne à 1000 lignes par requête : on paginate pour tout récupérer
+    const pageSize = 1000
+    let all: Ingredient[] = []
+    let from = 0
+    while (true) {
+      const { data: ingrs } = await supabase
+        .from('ingredients')
+        .select('*')
+        .order('nom')
+        .range(from, from + pageSize - 1)
+      if (!ingrs || ingrs.length === 0) break
+      all = all.concat(ingrs as Ingredient[])
+      if (ingrs.length < pageSize) break
+      from += pageSize
+    }
+    setIngredients(all)
     setLoading(false)
   }
 
