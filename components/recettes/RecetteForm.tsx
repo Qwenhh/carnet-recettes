@@ -600,7 +600,7 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
                     onChange={(e) => setRecherche(e.target.value)}
                     placeholder="Ajouter un ingrédient…"
                   />
-                  {suggestions.length > 0 && (
+                  {recherche.trim() && (
                     <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-card shadow-lg">
                       {suggestions.map((s) => (
                         <button

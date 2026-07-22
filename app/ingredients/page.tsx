@@ -150,37 +150,19 @@ export default function PageIngredients() {
     setSaving(true)
     const { ancienId, cibleId, famille, saisons } = fusionEnAttente
 
-    // 1. Trouver les recettes qui ont DÉJÀ la cible (pour éviter les doublons)
-    const { data: dejaPresents } = await supabase
-      .from('recette_ingredients')
-      .select('recette_id')
-      .eq('ingredient_id', cibleId)
+    // Fusion exécutée côté base de données en une transaction atomique
+    const { error } = await supabase.rpc('fusionner_ingredients', {
+      p_ancien_id: ancienId,
+      p_cible_id: cibleId,
+      p_famille: famille || null,
+      p_saisons: saisons,
+    })
 
-    const recetteIdsAvecCible = (dejaPresents ?? []).map((r) => r.recette_id)
-
-    // 2. Pour les recettes qui ont les deux : supprimer l'ancien
-    if (recetteIdsAvecCible.length > 0) {
-      await supabase
-        .from('recette_ingredients')
-        .delete()
-        .eq('ingredient_id', ancienId)
-        .in('recette_id', recetteIdsAvecCible)
+    if (error) {
+      toast.error('Erreur lors de la fusion : ' + error.message)
+      setSaving(false)
+      return
     }
-
-    // 3. Faire pointer les recettes restantes vers la cible
-    await supabase
-      .from('recette_ingredients')
-      .update({ ingredient_id: cibleId })
-      .eq('ingredient_id', ancienId)
-
-    // 4. Mettre à jour famille/saisons sur la cible si renseignés
-    await supabase
-      .from('ingredients')
-      .update({ famille: famille || null, saisons })
-      .eq('id', cibleId)
-
-    // 5. Supprimer l'ancien ingrédient
-    await supabase.from('ingredients').delete().eq('id', ancienId)
 
     toast.success('Ingrédients fusionnés !')
     setFusionEnAttente(null)

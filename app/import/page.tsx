@@ -301,32 +301,43 @@ export default function PageImport() {
 
         if (errRecette || !recetteData) throw new Error(errRecette?.message || 'Erreur création recette')
 
-        // ── Insérer les ingrédients avec groupe et ordre ──
+        // ── Insérer les ingrédients avec groupe et ordre (en batch) ──
         if (ingredients.length > 0) {
-          for (let ii = 0; ii < ingredients.length; ii++) {
-            const ing = ingredients[ii]
-            const { data: ingrData, error: errIngr } = await supabase
-              .from('ingredients')
-              .upsert(
-                { nom: ing.nom, famille: ing.famille ?? null, saisons: ing.saisons ?? [], allergenes: ing.allergenes ?? [] },
-                { onConflict: 'nom' }
-              )
-              .select()
-              .single()
-            if (errIngr || !ingrData) continue
+          const nomsUniques = Array.from(new Set(ingredients.map((i) => i.nom)))
+          const payloadIngredients = nomsUniques.map((nom) => {
+            const ing = ingredients.find((i) => i.nom === nom)!
+            return { nom, famille: ing.famille ?? null, saisons: ing.saisons ?? [], allergenes: ing.allergenes ?? [] }
+          })
 
-            await supabase.from('recette_ingredients').upsert(
-              {
+          const { data: ingrsData, error: errIngrs } = await supabase
+            .from('ingredients')
+            .upsert(payloadIngredients, { onConflict: 'nom' })
+            .select()
+
+          if (errIngrs || !ingrsData) throw new Error(errIngrs?.message || 'Erreur création des ingrédients')
+
+          const idParNom = new Map(ingrsData.map((i) => [i.nom, i.id]))
+
+          const payloadLiaisons = ingredients
+            .map((ing, ii) => {
+              const ingredient_id = idParNom.get(ing.nom)
+              if (!ingredient_id) return null
+              return {
                 recette_id: recetteData.id,
-                ingredient_id: ingrData.id,
+                ingredient_id,
                 quantite: ing.quantite ?? '',
                 unite: ing.unite ?? '',
                 groupe: ing.groupe?.trim() || null,
                 ordre: ii,
-              },
-              { onConflict: 'recette_id,ingredient_id' }
-            )
-          }
+              }
+            })
+            .filter((l): l is NonNullable<typeof l> => l !== null)
+
+          const { error: errLiaisons } = await supabase
+            .from('recette_ingredients')
+            .upsert(payloadLiaisons, { onConflict: 'recette_id,ingredient_id' })
+
+          if (errLiaisons) throw new Error(errLiaisons.message)
         }
 
         setResultats((prev) => prev.map((r, idx) => idx === i ? { ...r, etat: 'ok' } : r))
