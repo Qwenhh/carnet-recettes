@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { PencilIcon, CheckIcon, XIcon, SearchIcon, ChevronRightIcon, ArrowRightIcon, MergeIcon, Trash2Icon } from 'lucide-react'
+import { PencilIcon, CheckIcon, XIcon, SearchIcon, ChevronRightIcon, ArrowRightIcon, MergeIcon, Trash2Icon, WandSparklesIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { supabase } from '@/lib/supabase'
@@ -67,6 +67,10 @@ export default function PageIngredients() {
   const [recettesAssociees, setRecettesAssociees] = React.useState<RecetteAssociee[]>([])
   const [loadingRecettes, setLoadingRecettes] = React.useState(false)
 
+  // Fusion automatique des doublons de casse
+  const [fusionAutoOuverte, setFusionAutoOuverte] = React.useState(false)
+  const [fusionAutoEnCours, setFusionAutoEnCours] = React.useState(false)
+
   // Fusion en attente de confirmation
   const [fusionEnAttente, setFusionEnAttente] = React.useState<FusionEnAttente | null>(null)
 
@@ -111,6 +115,50 @@ export default function PageIngredients() {
     setSuppressionEnCours(false)
     if (error) { toast.error('Erreur lors de la suppression'); return }
     toast.success('Ingrédient supprimé')
+    charger()
+  }
+
+  // ── Doublons de casse (ex: "ail" / "Ail") ───────────────────────────────────
+
+  const groupesDoublonsCasse = React.useMemo(() => {
+    const parCle = new Map<string, Ingredient[]>()
+    for (const i of ingredients) {
+      const cle = i.nom.toLowerCase()
+      if (!parCle.has(cle)) parCle.set(cle, [])
+      parCle.get(cle)!.push(i)
+    }
+    return Array.from(parCle.values()).filter((groupe) => groupe.length > 1)
+  }, [ingredients])
+
+  async function fusionnerDoublonsCasse() {
+    setFusionAutoEnCours(true)
+    let nbFusions = 0
+    let nbErreurs = 0
+
+    for (const groupe of groupesDoublonsCasse) {
+      // Cible : l'ingrédient le plus utilisé du groupe (à égalité, ordre alphabétique)
+      const trie = [...groupe].sort((a, b) => {
+        const diff = (utilisations.get(b.id) ?? 0) - (utilisations.get(a.id) ?? 0)
+        return diff !== 0 ? diff : a.nom.localeCompare(b.nom)
+      })
+      const cible = trie[0]
+      const saisonsUnion = Array.from(new Set(groupe.flatMap((i) => i.saisons))) as Saison[]
+
+      for (const doublon of trie.slice(1)) {
+        const { error } = await supabase.rpc('fusionner_ingredients', {
+          p_ancien_id: doublon.id,
+          p_cible_id: cible.id,
+          p_saisons: saisonsUnion,
+        })
+        if (error) nbErreurs++
+        else nbFusions++
+      }
+    }
+
+    setFusionAutoEnCours(false)
+    setFusionAutoOuverte(false)
+    if (nbErreurs > 0) toast.error(`${nbFusions} fusion(s) réussie(s), ${nbErreurs} erreur(s)`)
+    else toast.success(`${nbFusions} doublon(s) fusionné(s) !`)
     charger()
   }
 
@@ -225,7 +273,15 @@ export default function PageIngredients() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold">Ingrédients</h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold">Ingrédients</h1>
+        {groupesDoublonsCasse.length > 0 && (
+          <Button variant="outline" size="sm" onClick={() => setFusionAutoOuverte(true)}>
+            <WandSparklesIcon className="size-4" />
+            Fusionner les doublons de casse ({groupesDoublonsCasse.length})
+          </Button>
+        )}
+      </div>
 
       <div className="relative mb-6">
         <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -474,6 +530,34 @@ export default function PageIngredients() {
           </div>
         </div>
       )}
+
+      {/* ── Fusion automatique des doublons de casse ── */}
+      <AlertDialog open={fusionAutoOuverte} onOpenChange={setFusionAutoOuverte}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Fusionner {groupesDoublonsCasse.length} doublon{groupesDoublonsCasse.length > 1 ? 's' : ''} ?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Seule la casse diffère au sein de chaque groupe. L&apos;ingrédient le plus utilisé est
+              conservé, les autres sont fusionnés dedans et supprimés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="max-h-64 space-y-1.5 overflow-y-auto rounded-lg bg-muted/50 p-3 text-sm">
+            {groupesDoublonsCasse.map((groupe) => (
+              <li key={groupe.map((i) => i.id).join('-')} className="text-muted-foreground">
+                {groupe.map((i) => i.nom).join(' / ')}
+              </li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={fusionAutoEnCours}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={fusionnerDoublonsCasse} disabled={fusionAutoEnCours}>
+              {fusionAutoEnCours ? 'Fusion…' : 'Fusionner tout'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
