@@ -102,9 +102,9 @@ export default function PageIngredients() {
 
     const nomNormalise = edition.nom.trim()
 
-    // Si le nom a changé, vérifier s'il existe déjà un autre ingrédient avec ce nom
+    // Si le nom a changé (y compris juste la casse), vérifier s'il existe déjà un autre ingrédient avec ce nom
     const ingrOriginal = ingredients.find((i) => i.id === edition.id)
-    if (ingrOriginal && nomNormalise.toLowerCase() !== ingrOriginal.nom.toLowerCase()) {
+    if (ingrOriginal && nomNormalise !== ingrOriginal.nom) {
       const doublon = ingredients.find(
         (i) => i.id !== edition.id && i.nom.toLowerCase() === nomNormalise.toLowerCase()
       )
