@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ClockIcon, UsersIcon } from 'lucide-react'
+import { ClockIcon, UsersIcon, CheckCircle2Icon } from 'lucide-react'
 
 import type { Recette, Saison } from '@/types'
 import { Badge } from '@/components/ui/badge'
@@ -35,7 +35,12 @@ export function RecetteCard({ recette }: RecetteCardProps) {
     <Link href={`/recettes/${recette.id}`} className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl">
       <Card className="h-full transition-shadow hover:shadow-md hover:ring-primary/30">
         <CardHeader>
-          <CardTitle className="font-semibold leading-snug">{recette.titre}</CardTitle>
+          <CardTitle className="flex items-start justify-between gap-2 font-semibold leading-snug">
+            <span>{recette.titre}</span>
+            {recette.verifiee && (
+              <CheckCircle2Icon className="size-4 shrink-0 text-primary" aria-label="Recette vérifiée" />
+            )}
+          </CardTitle>
         </CardHeader>
 
         <CardContent className="flex flex-col gap-3">

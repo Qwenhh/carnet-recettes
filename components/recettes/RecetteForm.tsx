@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
+import { Checkbox } from '@/components/ui/checkbox'
 import { MultiSelect } from '@/components/filtres/MultiSelect'
 
 // ─── Types locaux ──────────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ interface FormData {
   saisons: Saison[]
   contraintes_alimentaires: string[]
   allergenes: string[]
+  verifiee: boolean
   sections: SectionIngredient[]
   etapes_sections: EtapeSection[]
 }
@@ -65,6 +67,7 @@ const FORM_VIDE: FormData = {
   saisons: [],
   contraintes_alimentaires: [],
   allergenes: [],
+  verifiee: false,
   sections: [{ nom: '', ingredients: [] }],
   etapes_sections: [{ nom: '', etapes: [''] }],
 }
@@ -222,6 +225,7 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
       saisons: recette.saisons,
       contraintes_alimentaires: recette.contraintes_alimentaires,
       allergenes: recette.allergenes,
+      verifiee: recette.verifiee,
       sections: recetteToSections(recette),
       etapes_sections: recette.etapes_sections.length > 0
         ? recette.etapes_sections.map((s) => ({
@@ -433,6 +437,7 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
       saisons: form.saisons,
       contraintes_alimentaires: form.contraintes_alimentaires,
       allergenes: form.allergenes,
+      verifiee: form.verifiee,
       etapes: etapes_flat,
       etapes_sections: etapes_sections_clean,
     }
@@ -492,6 +497,13 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
               required
             />
           </div>
+          <label className="flex w-fit items-center gap-2 text-sm font-medium">
+            <Checkbox
+              checked={form.verifiee}
+              onCheckedChange={(v) => set('verifiee', v === true)}
+            />
+            Recette vérifiée
+          </label>
           <div>
             <Label htmlFor="descriptif">Descriptif</Label>
             <Textarea

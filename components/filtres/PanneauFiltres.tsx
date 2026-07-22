@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { SlidersHorizontalIcon, RotateCcwIcon } from 'lucide-react'
 
-import type { FiltresRecettes, Saison } from '@/types'
+import type { FiltresRecettes, FiltreVerification, Saison } from '@/types'
 import { FILTRES_DEFAUT, SAISONS } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,12 @@ const TRANCHES_PERSONNES = [
   { label: '10+ pers.', value: '10-999' },
 ]
 
+const OPTIONS_VERIFICATION: { label: string; value: FiltreVerification }[] = [
+  { label: 'Toutes',           value: 'toutes' },
+  { label: 'Vérifiées',        value: 'verifiees' },
+  { label: 'Non vérifiées',    value: 'non_verifiees' },
+]
+
 function compterFiltresActifs(filtres: FiltresRecettes): number {
   let n = 0
   if (filtres.saisons.length) n++
@@ -51,6 +57,7 @@ function compterFiltresActifs(filtres: FiltresRecettes): number {
   if (filtres.temps_preparation_max < 240) n++
   if (filtres.temps_cuisson_max < 240) n++
   if (filtres.nb_personnes_tranche) n++
+  if (filtres.verification !== 'toutes') n++
   return n
 }
 
@@ -91,6 +98,23 @@ function ContenuFiltres({ filtres, onChange, options, nbResultats }: Props) {
           </Button>
         )}
       </div>
+
+      {/* Vérification */}
+      <section>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Vérification</p>
+        <div className="flex flex-wrap gap-2">
+          {OPTIONS_VERIFICATION.map(({ label, value }) => (
+            <Button
+              key={value}
+              variant={filtres.verification === value ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => onChange({ verification: value })}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+      </section>
 
       {/* Saisons */}
       <section>

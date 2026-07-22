@@ -161,6 +161,8 @@ export default function PageListe() {
       const [min, max] = filtresDebounced.nb_personnes_tranche.split('-').map(Number)
       query = query.gte('nb_personnes', min).lte('nb_personnes', max)
     }
+    if (filtresDebounced.verification === 'verifiees') query = query.eq('verifiee', true)
+    else if (filtresDebounced.verification === 'non_verifiees') query = query.eq('verifiee', false)
 
     const from = (page - 1) * PER_PAGE
     const { data, count } = await query.range(from, from + PER_PAGE - 1)

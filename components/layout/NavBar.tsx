@@ -6,8 +6,8 @@ import { BookOpen, Leaf, Lightbulb, Settings, Upload } from 'lucide-react'
 
 const navItems = [
   { href: '/',            label: 'Recettes',     icon: BookOpen  },
-  { href: '/ingredients', label: 'Ingrédients',  icon: Leaf      },
   { href: '/tips',        label: 'Tips',         icon: Lightbulb },
+  { href: '/ingredients', label: 'Ingrédients',  icon: Leaf      },
   { href: '/import',      label: 'Import',       icon: Upload    },
   { href: '/parametrage', label: 'Paramétrage',  icon: Settings  },
 ]

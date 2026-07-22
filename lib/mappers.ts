@@ -22,6 +22,7 @@ interface RawRecette {
   titre: string
   descriptif: string | null
   photo_url: string | null
+  verifiee: boolean | null
   declinaisons: string | null
   materiel: string | null
   conservation: string | null
@@ -128,6 +129,7 @@ export function mapRecette(raw: RawRecette): Recette {
     ...raw,
     saisons: (raw.saisons ?? []) as Saison[],
     photo_url: raw.photo_url ?? null,
+    verifiee: raw.verifiee ?? false,
     declinaisons: raw.declinaisons ?? null,
     materiel: raw.materiel ?? null,
     conservation: raw.conservation ?? null,

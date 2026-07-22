@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ClockIcon, UsersIcon, PencilIcon, ArrowLeftIcon, PrinterIcon } from 'lucide-react'
+import { ClockIcon, UsersIcon, PencilIcon, ArrowLeftIcon, PrinterIcon, CheckCircle2Icon } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
 import { mapRecetteAny } from '@/lib/mappers'
@@ -82,7 +82,15 @@ export default async function PageDetail({
 
       {/* Titre + badges */}
       <header className="mb-6">
-        <h1 className="mb-3 text-3xl font-semibold leading-tight">{recette.titre}</h1>
+        <h1 className="mb-3 flex flex-wrap items-center gap-2 text-3xl font-semibold leading-tight">
+          {recette.titre}
+          {recette.verifiee && (
+            <Badge variant="default" className="gap-1 align-middle text-xs font-medium">
+              <CheckCircle2Icon className="size-3.5" />
+              Vérifiée
+            </Badge>
+          )}
+        </h1>
         <div className="flex flex-wrap gap-2">
           {recette.types_plat.map((t) => (
             <Badge key={t} variant="default">{t}</Badge>

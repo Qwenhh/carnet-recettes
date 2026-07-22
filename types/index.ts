@@ -32,6 +32,7 @@ export interface Recette {
   titre: string
   descriptif: string | null
   photo_url: string | null
+  verifiee: boolean
   declinaisons: string | null
   materiel: string | null       // équipements nécessaires
   conservation: string | null   // durée et mode de conservation
@@ -69,6 +70,8 @@ export type TypeListe =
 
 // ─── Filtres ───────────────────────────────────────────────────────────────
 
+export type FiltreVerification = 'toutes' | 'verifiees' | 'non_verifiees'
+
 export interface FiltresRecettes {
   ingredients: string[]
   saisons: Saison[]
@@ -79,6 +82,7 @@ export interface FiltresRecettes {
   temps_preparation_max: number
   temps_cuisson_max: number
   nb_personnes_tranche: string | null
+  verification: FiltreVerification
 }
 
 export const FILTRES_DEFAUT: FiltresRecettes = {
@@ -91,6 +95,7 @@ export const FILTRES_DEFAUT: FiltresRecettes = {
   temps_preparation_max: 240,
   temps_cuisson_max: 240,
   nb_personnes_tranche: null,
+  verification: 'toutes',
 }
 
 export const TRANCHES_PERSONNES = [
