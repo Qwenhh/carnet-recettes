@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { PlusIcon, Trash2Icon, ChevronUpIcon, ChevronDownIcon, ImageIcon, XIcon } from 'lucide-react'
+import { PlusIcon, Trash2Icon, GripVerticalIcon, ImageIcon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { supabase } from '@/lib/supabase'
@@ -162,6 +162,7 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
   const [recherche, setRecherche] = React.useState('')
   const [suggestions, setSuggestions] = React.useState<Ingredient[]>([])
   const [sectionActive, setSectionActive] = React.useState<number>(0)
+  const [ingredientEnDrag, setIngredientEnDrag] = React.useState<{ si: number; ii: number } | null>(null)
 
   // ─── Photo ───────────────────────────────────────────────────────────────
   const [photoFile, setPhotoFile] = React.useState<File | null>(null)
@@ -357,13 +358,13 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
     set('saisons', Array.from(new Set(all.flatMap((i) => i.saisons))) as Saison[])
   }
 
-  function deplacerIngredient(si: number, ii: number, direction: -1 | 1) {
+  function reordonnerIngredient(si: number, depuis: number, vers: number) {
+    if (depuis === vers) return
     const next = form.sections.map((s, i) => {
       if (i !== si) return s
-      const cible = ii + direction
-      if (cible < 0 || cible >= s.ingredients.length) return s
       const ingrs = [...s.ingredients]
-      ;[ingrs[ii], ingrs[cible]] = [ingrs[cible], ingrs[ii]]
+      const [deplace] = ingrs.splice(depuis, 1)
+      ingrs.splice(vers, 0, deplace)
       return { ...s, ingredients: ingrs }
     })
     set('sections', next)
@@ -676,29 +677,28 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
 
               {/* Lignes d'ingrédients */}
               {section.ingredients.map((ing, ii) => (
-                <div key={ing.ingredient_id} className="flex items-center gap-2">
-                  <div className="flex shrink-0 flex-col">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      disabled={ii === 0}
-                      onClick={() => deplacerIngredient(si, ii, -1)}
-                      aria-label="Monter l'ingrédient"
-                    >
-                      <ChevronUpIcon className="size-3.5 text-muted-foreground" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      disabled={ii === section.ingredients.length - 1}
-                      onClick={() => deplacerIngredient(si, ii, 1)}
-                      aria-label="Descendre l'ingrédient"
-                    >
-                      <ChevronDownIcon className="size-3.5 text-muted-foreground" />
-                    </Button>
-                  </div>
+                <div
+                  key={ing.ingredient_id}
+                  className={`flex items-center gap-2 rounded-md transition-opacity ${
+                    ingredientEnDrag?.si === si && ingredientEnDrag?.ii === ii ? 'opacity-40' : ''
+                  }`}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    if (ingredientEnDrag && ingredientEnDrag.si === si) {
+                      reordonnerIngredient(si, ingredientEnDrag.ii, ii)
+                    }
+                    setIngredientEnDrag(null)
+                  }}
+                >
+                  <span
+                    draggable
+                    onDragStart={() => setIngredientEnDrag({ si, ii })}
+                    onDragEnd={() => setIngredientEnDrag(null)}
+                    className="shrink-0 cursor-grab touch-none active:cursor-grabbing"
+                  >
+                    <GripVerticalIcon className="size-4 text-muted-foreground" />
+                  </span>
                   <span className="w-40 truncate text-sm font-medium">{ing.nom}</span>
                   <Input
                     value={ing.quantite}
