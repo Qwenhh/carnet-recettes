@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { PlusIcon, Trash2Icon, GripVerticalIcon, ImageIcon, XIcon } from 'lucide-react'
+import { PlusIcon, Trash2Icon, ChevronUpIcon, ChevronDownIcon, ImageIcon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { supabase } from '@/lib/supabase'
@@ -357,6 +357,18 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
     set('saisons', Array.from(new Set(all.flatMap((i) => i.saisons))) as Saison[])
   }
 
+  function deplacerIngredient(si: number, ii: number, direction: -1 | 1) {
+    const next = form.sections.map((s, i) => {
+      if (i !== si) return s
+      const cible = ii + direction
+      if (cible < 0 || cible >= s.ingredients.length) return s
+      const ingrs = [...s.ingredients]
+      ;[ingrs[ii], ingrs[cible]] = [ingrs[cible], ingrs[ii]]
+      return { ...s, ingredients: ingrs }
+    })
+    set('sections', next)
+  }
+
   // ─── Sections d'étapes ────────────────────────────────────────────────────
 
   function ajouterEtapeSection() {
@@ -665,7 +677,28 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
               {/* Lignes d'ingrédients */}
               {section.ingredients.map((ing, ii) => (
                 <div key={ing.ingredient_id} className="flex items-center gap-2">
-                  <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
+                  <div className="flex shrink-0 flex-col">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      disabled={ii === 0}
+                      onClick={() => deplacerIngredient(si, ii, -1)}
+                      aria-label="Monter l'ingrédient"
+                    >
+                      <ChevronUpIcon className="size-3.5 text-muted-foreground" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      disabled={ii === section.ingredients.length - 1}
+                      onClick={() => deplacerIngredient(si, ii, 1)}
+                      aria-label="Descendre l'ingrédient"
+                    >
+                      <ChevronDownIcon className="size-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
                   <span className="w-40 truncate text-sm font-medium">{ing.nom}</span>
                   <Input
                     value={ing.quantite}
