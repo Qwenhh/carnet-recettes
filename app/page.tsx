@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { PlusIcon, SearchIcon, ArrowUpDownIcon, RotateCcwIcon, ChevronsLeftIcon, ChevronsRightIcon } from 'lucide-react'
+import { PlusIcon, SearchIcon, ArrowUpDownIcon, RotateCcwIcon, ChevronsLeftIcon, ChevronsRightIcon, ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
 import { mapRecetteAny } from '@/lib/mappers'
@@ -267,11 +267,12 @@ export default function PageListe() {
                   <Button variant="outline" size="icon" disabled={page === 1} onClick={() => setPage(1)} aria-label="Première page">
                     <ChevronsLeftIcon className="size-4" />
                   </Button>
-                  <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
-                    Précédent
+                  <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="gap-1 px-2 sm:px-2.5">
+                    <ChevronLeftIcon className="size-4" />
+                    <span className="hidden sm:inline">Précédent</span>
                   </Button>
                   <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    Page
+                    <span className="hidden sm:inline">Page</span>
                     <input
                       type="number"
                       min={1}
@@ -280,12 +281,13 @@ export default function PageListe() {
                       onChange={(e) => setPageInput(e.target.value)}
                       onBlur={(e) => allerALaPage(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur() } }}
-                      className="h-7 w-14 rounded-md border border-input bg-background text-center text-sm text-foreground [appearance:textfield] focus:outline-none focus:ring-2 focus:ring-ring [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="h-7 w-12 rounded-md border border-input bg-background text-center text-sm text-foreground [appearance:textfield] focus:outline-none focus:ring-2 focus:ring-ring [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     / {nbPages}
                   </span>
-                  <Button variant="outline" size="sm" disabled={page === nbPages} onClick={() => setPage((p) => p + 1)}>
-                    Suivant
+                  <Button variant="outline" size="sm" disabled={page === nbPages} onClick={() => setPage((p) => p + 1)} className="gap-1 px-2 sm:px-2.5">
+                    <span className="hidden sm:inline">Suivant</span>
+                    <ChevronRightIcon className="size-4" />
                   </Button>
                   <Button variant="outline" size="icon" disabled={page === nbPages} onClick={() => setPage(nbPages)} aria-label="Dernière page">
                     <ChevronsRightIcon className="size-4" />

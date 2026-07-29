@@ -133,7 +133,7 @@ export default async function PageDetail({
         <img
           src={recette.photo_url}
           alt={recette.titre}
-          className="mb-4 aspect-[16/9] w-full rounded-xl border border-border object-cover"
+          className="mb-4 max-h-[70vh] w-full rounded-xl border border-border object-contain"
         />
       )}
 
