@@ -87,6 +87,27 @@ function tousIngredients(sections: SectionIngredient[]): LigneIngredient[] {
   return sections.flatMap((s) => s.ingredients)
 }
 
+// Certaines photos (partage depuis le téléphone, capture d'écran…) n'ont pas
+// d'extension propre dans leur nom, ou des caractères qui cassent l'upload.
+// On préfère déduire l'extension du type MIME du fichier.
+function extensionDepuisFichier(file: File): string {
+  const extNom = file.name.includes('.') ? file.name.split('.').pop() : ''
+  if (extNom && /^[a-zA-Z0-9]{2,5}$/.test(extNom)) return extNom.toLowerCase()
+  const extMime = file.type.split('/').pop()
+  if (extMime && /^[a-zA-Z0-9]{2,5}$/.test(extMime)) return extMime.toLowerCase()
+  return 'jpg'
+}
+
+// Isole les erreurs réseau (ex: connexion coupée en cours d'envoi) des
+// erreurs renvoyées par Supabase, pour afficher un message clair à l'usage.
+async function uploaderVersStorage(chemin: string, file: File) {
+  try {
+    return await supabase.storage.from(PHOTO_BUCKET).upload(chemin, file, { upsert: true })
+  } catch {
+    throw new Error("Connexion interrompue pendant l'envoi de la photo. Vérifiez votre connexion et réessayez.")
+  }
+}
+
 function recetteToSections(recette: Recette): SectionIngredient[] {
   const sections: SectionIngredient[] = []
   const seen = new Map<string, SectionIngredient>()
@@ -198,10 +219,15 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
 
   async function uploaderPhotoSiBesoin(): Promise<string | null> {
     if (photoFile) {
-      const ext = photoFile.name.split('.').pop() || 'jpg'
+      // Nom de fichier fiable : certaines photos (téléphone, partage) n'ont pas
+      // d'extension propre ou contiennent des caractères qui cassent l'upload —
+      // on déduit l'extension du type MIME plutôt que de faire confiance au nom.
+      const ext = extensionDepuisFichier(photoFile)
       const chemin = `${dossierPhotoRef.current}/${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(chemin, photoFile, { upsert: true })
+
+      const { error } = await uploaderVersStorage(chemin, photoFile)
       if (error) throw new Error("Erreur lors de l'envoi de la photo : " + error.message)
+
       const { data } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(chemin)
       return data.publicUrl
     }

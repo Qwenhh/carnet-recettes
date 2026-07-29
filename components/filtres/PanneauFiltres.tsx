@@ -233,41 +233,39 @@ function ContenuFiltres({ filtres, onChange, options, nbResultats }: Props) {
 }
 
 export function PanneauFiltres(props: Props) {
+  return (
+    // Desktop : colonne sticky (le déclencheur mobile est un composant séparé,
+    // affiché dans la barre d'outils pour ne pas chevaucher la pagination)
+    <aside className="hidden w-72 shrink-0 md:block">
+      <div className="sticky top-4 rounded-xl border border-border bg-card">
+        <ContenuFiltres {...props} />
+      </div>
+    </aside>
+  )
+}
+
+export function FiltresMobileTrigger(props: Props) {
   const nbActifs = compterFiltresActifs(props.filtres)
 
   return (
-    <>
-      {/* Desktop : colonne sticky */}
-      <aside className="hidden w-72 shrink-0 md:block">
-        <div className="sticky top-4 rounded-xl border border-border bg-card">
+    <div className="md:hidden">
+      <Sheet>
+        <SheetTrigger render={<Button variant="outline" className="gap-2" />}>
+          <SlidersHorizontalIcon className="size-4" />
+          Filtres
+          {nbActifs > 0 && (
+            <Badge variant="secondary" className="ml-1">
+              {nbActifs}
+            </Badge>
+          )}
+        </SheetTrigger>
+        <SheetContent side="left" className="w-80 p-0">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Filtres</SheetTitle>
+          </SheetHeader>
           <ContenuFiltres {...props} />
-        </div>
-      </aside>
-
-      {/* Mobile : Sheet via bouton flottant */}
-      <div className="fixed bottom-6 right-6 z-40 md:hidden">
-        <Sheet>
-          <SheetTrigger
-            render={
-              <Button className="gap-2 shadow-lg" />
-            }
-          >
-            <SlidersHorizontalIcon />
-            Filtres
-            {nbActifs > 0 && (
-              <Badge variant="secondary" className="ml-1">
-                {nbActifs}
-              </Badge>
-            )}
-          </SheetTrigger>
-          <SheetContent side="left" className="w-80 p-0">
-            <SheetHeader className="sr-only">
-              <SheetTitle>Filtres</SheetTitle>
-            </SheetHeader>
-            <ContenuFiltres {...props} />
-          </SheetContent>
-        </Sheet>
-      </div>
-    </>
+        </SheetContent>
+      </Sheet>
+    </div>
   )
 }

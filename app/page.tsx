@@ -11,7 +11,7 @@ import { FILTRES_DEFAUT } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RecetteCard } from '@/components/recettes/RecetteCard'
-import { PanneauFiltres } from '@/components/filtres/PanneauFiltres'
+import { PanneauFiltres, FiltresMobileTrigger } from '@/components/filtres/PanneauFiltres'
 
 const PER_PAGE = 20
 const ETAT_STORAGE_KEY = 'recettes-liste-etat'
@@ -195,7 +195,7 @@ export default function PageListe() {
       </div>
 
       {/* Recherche + Tri */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <div className="relative flex-1">
           <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -219,6 +219,14 @@ export default function PageListe() {
           </select>
           <ArrowUpDownIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         </div>
+
+        {/* Filtres (mobile uniquement — le panneau desktop est dans la colonne latérale) */}
+        <FiltresMobileTrigger
+          filtres={filtres}
+          onChange={(p) => setFiltres((prev) => ({ ...prev, ...p }))}
+          options={options}
+          nbResultats={total}
+        />
 
         {/* Réinitialiser les filtres */}
         {filtresActifs && (
