@@ -62,12 +62,12 @@ export default async function PageDetail({
   return (
     <article className="mx-auto max-w-3xl">
       {/* Navigation */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
         <Button variant="ghost" size="sm" render={<Link href="/" />}>
           <ArrowLeftIcon className="size-4" />
           Retour
         </Button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" render={<a href={`/api/recettes/${id}/fiche-technique`} download />}>
             <PrinterIcon className="size-4" />
             Fiche technique
@@ -133,7 +133,7 @@ export default async function PageDetail({
         <img
           src={recette.photo_url}
           alt={recette.titre}
-          className="mb-4 h-auto max-h-[420px] w-full rounded-xl border border-border object-cover"
+          className="mb-4 aspect-[16/9] w-full rounded-xl border border-border object-cover"
         />
       )}
 

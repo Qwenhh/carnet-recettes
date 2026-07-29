@@ -263,7 +263,7 @@ export default function PageListe() {
                 {recettes.map((r) => <RecetteCard key={r.id} recette={r} />)}
               </div>
               {nbPages > 1 && (
-                <div className="mt-6 flex items-center justify-center gap-2">
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
                   <Button variant="outline" size="icon" disabled={page === 1} onClick={() => setPage(1)} aria-label="Première page">
                     <ChevronsLeftIcon className="size-4" />
                   </Button>
