@@ -102,12 +102,19 @@ export default function PageIngredients() {
 
     const [ingrs, liaisons] = await Promise.all([
       chargerTout<Ingredient>('ingredients', '*'),
-      chargerTout<{ ingredient_id: string }>('recette_ingredients', 'ingredient_id'),
+      chargerTout<{ ingredient_id: string; recette_id: string }>('recette_ingredients', 'ingredient_id, recette_id'),
     ])
 
-    const compteur = new Map<string, number>()
+    // Un ingrédient peut apparaître plusieurs fois dans une même recette (sections
+    // différentes) : on compte les recettes distinctes, pas les lignes de liaison.
+    const recettesParIngredient = new Map<string, Set<string>>()
     for (const l of liaisons) {
-      compteur.set(l.ingredient_id, (compteur.get(l.ingredient_id) ?? 0) + 1)
+      if (!recettesParIngredient.has(l.ingredient_id)) recettesParIngredient.set(l.ingredient_id, new Set())
+      recettesParIngredient.get(l.ingredient_id)!.add(l.recette_id)
+    }
+    const compteur = new Map<string, number>()
+    for (const [ingredientId, recetteIds] of recettesParIngredient) {
+      compteur.set(ingredientId, recetteIds.size)
     }
 
     setIngredients(ingrs.sort((a, b) => a.nom.localeCompare(b.nom)))

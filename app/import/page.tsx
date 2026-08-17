@@ -335,27 +335,28 @@ export default function PageImport() {
 
           const idParNom = new Map(ingrsData.map((i) => [i.nom, i.id]))
 
-          // La table n'autorise qu'une ligne par (recette, ingrédient) : si un même
-          // ingrédient apparaît deux fois dans la recette (ex: "Sel" dans "Pâte" ET
-          // "Garniture"), on ne garde que la première occurrence pour éviter que
-          // l'upsert ne plante en voulant modifier la même ligne deux fois.
-          const ingredientIdsVus = new Set<string>()
+          // La table autorise un même ingrédient dans plusieurs sections différentes
+          // (ex: "Sel" dans "Pâte" ET dans "Garniture"), mais pas deux fois dans la
+          // MÊME section — ça reste une vraie erreur de saisie qu'on ignore ici.
+          const clesVues = new Set<string>()
           const doublonsIgnores: string[] = []
           const payloadLiaisons = ingredients
             .map((ing, ii) => {
               const ingredient_id = idParNom.get(ing.nom)
               if (!ingredient_id) return null
-              if (ingredientIdsVus.has(ingredient_id)) {
+              const groupe = ing.groupe?.trim() || null
+              const cle = `${ingredient_id}::${groupe ?? ''}`
+              if (clesVues.has(cle)) {
                 doublonsIgnores.push(ing.nom)
                 return null
               }
-              ingredientIdsVus.add(ingredient_id)
+              clesVues.add(cle)
               return {
                 recette_id: recetteData.id,
                 ingredient_id,
                 quantite: ing.quantite ?? '',
                 unite: ing.unite ?? '',
-                groupe: ing.groupe?.trim() || null,
+                groupe,
                 ordre: ii,
               }
             })
@@ -363,7 +364,7 @@ export default function PageImport() {
 
           const { error: errLiaisons } = await supabase
             .from('recette_ingredients')
-            .upsert(payloadLiaisons, { onConflict: 'recette_id,ingredient_id' })
+            .upsert(payloadLiaisons, { onConflict: 'recette_id,ingredient_id,groupe' })
 
           if (errLiaisons) throw new Error(errLiaisons.message)
 

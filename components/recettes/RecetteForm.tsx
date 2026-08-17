@@ -325,8 +325,10 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
   }
 
   function selectionnerIngredient(ingr: Ingredient) {
-    if (tousIngredients(form.sections).some((i) => i.ingredient_id === ingr.id)) {
-      toast.info(`${ingr.nom} est déjà dans la liste`)
+    // Un même ingrédient peut apparaître dans plusieurs sections (ex: "Sel" dans
+    // "Pâte" et dans "Garniture"), on bloque seulement le doublon dans la section active
+    if (form.sections[sectionActive]?.ingredients.some((i) => i.ingredient_id === ingr.id)) {
+      toast.info(`${ingr.nom} est déjà dans cette section`)
       setRecherche('')
       setSuggestions([])
       return
