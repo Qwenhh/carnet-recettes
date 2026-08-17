@@ -335,10 +335,21 @@ export default function PageImport() {
 
           const idParNom = new Map(ingrsData.map((i) => [i.nom, i.id]))
 
+          // La table n'autorise qu'une ligne par (recette, ingrédient) : si un même
+          // ingrédient apparaît deux fois dans la recette (ex: "Sel" dans "Pâte" ET
+          // "Garniture"), on ne garde que la première occurrence pour éviter que
+          // l'upsert ne plante en voulant modifier la même ligne deux fois.
+          const ingredientIdsVus = new Set<string>()
+          const doublonsIgnores: string[] = []
           const payloadLiaisons = ingredients
             .map((ing, ii) => {
               const ingredient_id = idParNom.get(ing.nom)
               if (!ingredient_id) return null
+              if (ingredientIdsVus.has(ingredient_id)) {
+                doublonsIgnores.push(ing.nom)
+                return null
+              }
+              ingredientIdsVus.add(ingredient_id)
               return {
                 recette_id: recetteData.id,
                 ingredient_id,
@@ -355,6 +366,12 @@ export default function PageImport() {
             .upsert(payloadLiaisons, { onConflict: 'recette_id,ingredient_id' })
 
           if (errLiaisons) throw new Error(errLiaisons.message)
+
+          if (doublonsIgnores.length > 0) {
+            toast.warning(
+              `« ${rec.titre || 'Sans titre'} » : ingrédient(s) en double ignoré(s) — ${doublonsIgnores.join(', ')} (à vérifier/ajouter manuellement)`
+            )
+          }
         }
 
         setResultats((prev) => prev.map((r, idx) => idx === i ? { ...r, etat: 'ok' } : r))
