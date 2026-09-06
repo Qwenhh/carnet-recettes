@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { BoutonSupprimer } from '@/components/recettes/BoutonSupprimer'
+import { BoutonDupliquer } from '@/components/recettes/BoutonDupliquer'
 
 const SAISON_EMOJIS: Record<Saison, string> = {
   Printemps: '🌸',
@@ -76,6 +77,7 @@ export default async function PageDetail({
             <PencilIcon className="size-4" />
             Modifier
           </Button>
+          <BoutonDupliquer recette={recette} />
           <BoutonSupprimer id={id} />
         </div>
       </div>
