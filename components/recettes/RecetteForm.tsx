@@ -184,6 +184,7 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
   const [suggestions, setSuggestions] = React.useState<Ingredient[]>([])
   const [sectionActive, setSectionActive] = React.useState<number>(0)
   const [ingredientEnDrag, setIngredientEnDrag] = React.useState<{ si: number; ii: number } | null>(null)
+  const [etapeEnDrag, setEtapeEnDrag] = React.useState<{ si: number; ei: number } | null>(null)
 
   // ─── Photo ───────────────────────────────────────────────────────────────
   const [photoFile, setPhotoFile] = React.useState<File | null>(null)
@@ -438,6 +439,17 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
     set('etapes_sections', form.etapes_sections.map((sec, i) =>
       i === si ? { ...sec, etapes: sec.etapes.filter((_, j) => j !== ei) } : sec
     ))
+  }
+
+  function reordonnerEtape(si: number, depuis: number, vers: number) {
+    if (depuis === vers) return
+    set('etapes_sections', form.etapes_sections.map((sec, i) => {
+      if (i !== si) return sec
+      const etapes = [...sec.etapes]
+      const [deplace] = etapes.splice(depuis, 1)
+      etapes.splice(vers, 0, deplace)
+      return { ...sec, etapes }
+    }))
   }
 
   // ─── Sauvegarde ──────────────────────────────────────────────────────────
@@ -818,7 +830,28 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
               )}
 
               {section.etapes.map((etape, ei) => (
-                <div key={ei} className="flex items-start gap-3">
+                <div
+                  key={ei}
+                  className={`flex items-start gap-3 rounded-md transition-opacity ${
+                    etapeEnDrag?.si === si && etapeEnDrag?.ei === ei ? 'opacity-40' : ''
+                  }`}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    if (etapeEnDrag && etapeEnDrag.si === si) {
+                      reordonnerEtape(si, etapeEnDrag.ei, ei)
+                    }
+                    setEtapeEnDrag(null)
+                  }}
+                >
+                  <span
+                    draggable
+                    onDragStart={() => setEtapeEnDrag({ si, ei })}
+                    onDragEnd={() => setEtapeEnDrag(null)}
+                    className="mt-2 shrink-0 cursor-grab touch-none active:cursor-grabbing"
+                  >
+                    <GripVerticalIcon className="size-4 text-muted-foreground" />
+                  </span>
                   <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground mt-2">
                     {ei + 1}
                   </span>
