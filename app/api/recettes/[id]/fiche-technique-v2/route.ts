@@ -248,7 +248,7 @@ export async function GET(
   rc += 2
 
   const rEnteteCout = rc
-  const entetesCout = ['Ingrédient', 'Quantité', 'Unité', 'Prix au kg / litre', 'Coût']
+  const entetesCout = ['Ingrédient', 'Unité', 'Quantité', 'Prix au kg / litre', 'Coût']
   ;(['C', 'D', 'E', 'F', 'G'] as const).forEach((col, i) => {
     const c = sheet.getCell(`${col}${rEnteteCout}`)
     c.value = entetesCout[i]
