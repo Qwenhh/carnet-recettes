@@ -243,12 +243,12 @@ export async function GET(
   rc += 1
 
   const cNote = sheet.getCell(`C${rc}`)
-  cNote.value = "Ne reste qu'à remplir le prix au kg de chaque ingrédient — tout le reste se calcule automatiquement."
+  cNote.value = "Ne reste qu'à remplir le prix au kg (ou au litre pour les liquides) de chaque ingrédient — tout le reste se calcule automatiquement."
   cNote.font = { italic: true, size: 9, color: { argb: 'FF666666' } }
   rc += 2
 
   const rEnteteCout = rc
-  const entetesCout = ['Ingrédient', 'Quantité', 'Unité', 'Prix au kg', 'Coût']
+  const entetesCout = ['Ingrédient', 'Quantité', 'Unité', 'Prix au kg / litre', 'Coût']
   ;(['C', 'D', 'E', 'F', 'G'] as const).forEach((col, i) => {
     const c = sheet.getCell(`${col}${rEnteteCout}`)
     c.value = entetesCout[i]
@@ -277,14 +277,15 @@ export async function GET(
     cPrix.numFmt = FORMAT_EUROS
     // volontairement vide : c'est la seule case à remplir à la main
 
-    // Coût = (quantité convertie en kg) × prix au kg.
-    // Conversion : "kg" reste tel quel, toute autre unité (g, ml, pièce…) est
-    // divisée par 1000 (hypothèse : quantité exprimée en grammes). Corrigez la
-    // cellule directement si une ligne ne suit pas cette règle (ex: "pièce").
+    // Coût = (quantité convertie en kg ou en litre) × prix au kg/litre.
+    // "kg" et "l"/"litre" restent tels quels (déjà dans la bonne unité),
+    // "cl" est divisé par 100, tout le reste (g, ml, pièce…) est divisé par
+    // 1000. Corrigez la cellule directement si une ligne ne suit pas cette
+    // règle (ex: "pièce").
     const cCout = sheet.getCell(`G${rc}`)
     cCout.numFmt = FORMAT_EUROS
     cCout.value = {
-      formula: `IF(AND(ISNUMBER(E${rc}), F${rc}<>""), IF(LOWER(D${rc})="kg", E${rc}, E${rc}/1000) * F${rc}, "")`,
+      formula: `IF(AND(ISNUMBER(E${rc}), F${rc}<>""), IF(OR(LOWER(D${rc})="kg", LOWER(D${rc})="l", LOWER(D${rc})="litre"), E${rc}, IF(LOWER(D${rc})="cl", E${rc}/100, E${rc}/1000)) * F${rc}, "")`,
     }
 
     ;['C', 'D', 'E', 'F', 'G'].forEach((col) => { sheet.getCell(`${col}${rc}`).border = BORDURE_FINE })
