@@ -73,6 +73,10 @@ export default async function PageDetail({
             <PrinterIcon className="size-4" />
             Fiche technique
           </Button>
+          <Button variant="outline" size="sm" render={<a href={`/api/recettes/${id}/fiche-technique-v2`} download />}>
+            <PrinterIcon className="size-4" />
+            Fiche technique V2
+          </Button>
           <Button variant="outline" size="sm" render={<Link href={`/recettes/${id}/modifier`} />}>
             <PencilIcon className="size-4" />
             Modifier
