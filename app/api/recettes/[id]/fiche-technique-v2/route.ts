@@ -350,10 +350,10 @@ export async function GET(
   cPrixVente.numFmt = FORMAT_EUROS
   // volontairement vide : à saisir à la main
 
-  // Marge = coût par portion - prix de vente
+  // Marge = prix de vente - coût par portion
   const { row: rMarge, cellule: cMarge } = ligneSynthese('Marge')
   cMarge.numFmt = FORMAT_EUROS
-  cMarge.value = { formula: `IF(B${rPrixVente}<>"", B${rCoutParPortion}-B${rPrixVente}, "")` }
+  cMarge.value = { formula: `IF(B${rPrixVente}<>"", B${rPrixVente}-B${rCoutParPortion}, "")` }
 
   // Marge en %
   const { cellule: cMargePct } = ligneSynthese('Marge en %')
