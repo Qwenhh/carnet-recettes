@@ -125,7 +125,7 @@ export async function GET(
   }
   cAllerg.alignment = { wrapText: true, vertical: 'top' }
 
-  const champsCout = ['Coût matières total HT :', 'Coeff multiplicateur', 'Prix de vente / Portion HT']
+  const champsCout = ['Coût par portion :', 'Coeff multiplicateur', 'Prix de vente / Portion']
   champsCout.forEach((label, i) => {
     const row = rAllergenes + i
     const cLabel = sheet.getCell(`C${row}`)
@@ -134,7 +134,7 @@ export async function GET(
     sheet.mergeCells(`D${row}:E${row}`)
     sheet.getCell(`D${row}`).border = BORDURE_FINE
   })
-  const rCoutMatieres = rAllergenes // ligne "Coût matières total HT :", remplie plus bas via formule vers l'onglet Coût de revient
+  const rCoutParPortionSheet1 = rAllergenes // ligne "Coût par portion :", remplie plus bas via formule vers l'onglet Coût de revient
   r = rAllergenes + 4
 
   // ── Temps ──
@@ -309,40 +309,61 @@ export async function GET(
 
   rc += 1
 
-  // Nombre de portions (pré-rempli depuis la recette si connu, sinon à saisir)
-  const rPortions = rc
-  sheetCout.getCell(`A${rPortions}`).value = 'Nombre de portions'
-  sheetCout.getCell(`A${rPortions}`).font = { bold: true }
-  const cPortions = sheetCout.getCell(`B${rPortions}`)
-  cPortions.value = recette.nb_personnes ?? undefined
-  cPortions.border = BORDURE_FINE
-  rc += 1
-
-  // Coût total matières
-  const rTotal = rc
-  sheetCout.getCell(`A${rTotal}`).value = 'Coût total matières'
-  sheetCout.getCell(`A${rTotal}`).font = { bold: true }
-  const cTotal = sheetCout.getCell(`B${rTotal}`)
-  cTotal.numFmt = FORMAT_EUROS
-  cTotal.font = { bold: true }
-  cTotal.value = rFinCout >= rDebutCout ? { formula: `SUM(E${rDebutCout}:E${rFinCout})` } : 0
-  rc += 1
-
-  // Coût par portion
-  const rParPortion = rc
-  sheetCout.getCell(`A${rParPortion}`).value = 'Coût par portion'
-  sheetCout.getCell(`A${rParPortion}`).font = { bold: true }
-  const cParPortion = sheetCout.getCell(`B${rParPortion}`)
-  cParPortion.numFmt = FORMAT_EUROS
-  cParPortion.font = { bold: true }
-  cParPortion.value = {
-    formula: `IFERROR(B${rTotal}/B${rPortions}, "")`,
+  function ligneSynthese(label: string, opts?: { gras?: boolean }): { row: number; cellule: ExcelJS.Cell } {
+    const row = rc
+    const cLabel = sheetCout.getCell(`A${row}`)
+    cLabel.value = label
+    cLabel.font = { bold: opts?.gras ?? true }
+    const cellule = sheetCout.getCell(`B${row}`)
+    cellule.border = BORDURE_FINE
+    cellule.font = { bold: opts?.gras ?? true }
+    rc += 1
+    return { row, cellule }
   }
 
-  // ── Report automatique du coût total dans l'onglet Fiche technique ──
-  const cCoutMatieresSheet1 = sheet.getCell(`D${rCoutMatieres}`)
-  cCoutMatieresSheet1.numFmt = FORMAT_EUROS
-  cCoutMatieresSheet1.value = { formula: `'${NOM_ONGLET_COUT}'!B${rTotal}` }
+  // Nombre de portions (pré-rempli depuis la recette si connu, sinon à saisir)
+  const { row: rPortions, cellule: cPortions } = ligneSynthese('Nombre de portions')
+  cPortions.value = recette.nb_personnes ?? undefined
+
+  // Coût total matières premières
+  const { row: rTotalMP, cellule: cTotalMP } = ligneSynthese('Coût total matières premières')
+  cTotalMP.numFmt = FORMAT_EUROS
+  cTotalMP.value = rFinCout >= rDebutCout ? { formula: `SUM(E${rDebutCout}:E${rFinCout})` } : 0
+
+  // Coefficient assaisonnement (par défaut 5 %, modifiable)
+  const { row: rCoeffAssaisonnement, cellule: cCoeffAssaisonnement } = ligneSynthese('Coefficient assaisonnement')
+  cCoeffAssaisonnement.numFmt = '0%'
+  cCoeffAssaisonnement.value = 0.05
+
+  // Coût avec l'assaisonnement
+  const { row: rCoutAssaisonne, cellule: cCoutAssaisonne } = ligneSynthese("Coût avec l'assaisonnement")
+  cCoutAssaisonne.numFmt = FORMAT_EUROS
+  cCoutAssaisonne.value = { formula: `B${rTotalMP}*(1+B${rCoeffAssaisonnement})` }
+
+  // Coût par portion
+  const { row: rCoutParPortion, cellule: cCoutParPortion } = ligneSynthese('Coût par portion')
+  cCoutParPortion.numFmt = FORMAT_EUROS
+  cCoutParPortion.value = { formula: `IFERROR(B${rCoutAssaisonne}/B${rPortions}, "")` }
+
+  // Prix de vente (par portion, à saisir)
+  const { row: rPrixVente, cellule: cPrixVente } = ligneSynthese('Prix de vente')
+  cPrixVente.numFmt = FORMAT_EUROS
+  // volontairement vide : à saisir à la main
+
+  // Marge = coût par portion - prix de vente
+  const { row: rMarge, cellule: cMarge } = ligneSynthese('Marge')
+  cMarge.numFmt = FORMAT_EUROS
+  cMarge.value = { formula: `IF(B${rPrixVente}<>"", B${rCoutParPortion}-B${rPrixVente}, "")` }
+
+  // Marge en %
+  const { cellule: cMargePct } = ligneSynthese('Marge en %')
+  cMargePct.numFmt = '0.0%'
+  cMargePct.value = { formula: `IFERROR(B${rMarge}/B${rPrixVente}, "")` }
+
+  // ── Report automatique du coût par portion dans l'onglet Fiche technique ──
+  const cCoutParPortionSheet1 = sheet.getCell(`D${rCoutParPortionSheet1}`)
+  cCoutParPortionSheet1.numFmt = FORMAT_EUROS
+  cCoutParPortionSheet1.value = { formula: `'${NOM_ONGLET_COUT}'!B${rCoutParPortion}` }
 
   const buffer = await workbook.xlsx.writeBuffer()
 
