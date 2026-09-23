@@ -6,9 +6,10 @@ import { mapRecetteAny } from '@/lib/mappers'
 
 // ─── V2 (expérimentale) ─────────────────────────────────────────────────────
 // Copie indépendante de la V1 (app/api/recettes/[id]/fiche-technique) —
-// ne pas toucher à la V1 en modifiant ce fichier. Ajoute un tableau de
-// coût de revient avec formules Excel pré-remplies : il ne reste qu'à
-// saisir le prix au kg de chaque ingrédient.
+// ne pas toucher à la V1 en modifiant ce fichier. Deux onglets : la fiche
+// technique elle-même, et un onglet "Coût de revient" avec le prix au kg/L
+// de chaque ingrédient. Le total du 2e onglet est reporté automatiquement
+// dans la case "Coût matières total HT" du 1er.
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ const BORDURE_FINE: Partial<ExcelJS.Borders> = {
 }
 
 const FORMAT_EUROS = '#,##0.00" €"'
+const NOM_ONGLET_COUT = 'Coût de revient'
 
 // ─── Route ──────────────────────────────────────────────────────────────────
 
@@ -72,7 +74,9 @@ export async function GET(
   workbook.creator = 'Carnet de recettes'
   workbook.created = new Date()
 
-  const sheet = workbook.addWorksheet('Fiche technique V2', {
+  // ─── Onglet 1 : Fiche technique ─────────────────────────────────────────
+
+  const sheet = workbook.addWorksheet('Fiche technique', {
     pageSetup: { fitToPage: true, fitToWidth: 1, fitToHeight: 0, orientation: 'portrait' },
   })
 
@@ -82,8 +86,6 @@ export async function GET(
     { key: 'C', width: 26 },
     { key: 'D', width: 8 },
     { key: 'E', width: 10 },
-    { key: 'F', width: 14 },
-    { key: 'G', width: 12 },
   ]
 
   let r = 1
@@ -111,7 +113,7 @@ export async function GET(
     r += 2
   }
 
-  // ── Allergènes + Coût / Coeff / Prix (vides) ──
+  // ── Allergènes + Coût / Coeff / Prix ──
   const rAllergenes = r
   sheet.mergeCells(`A${rAllergenes}:B${rAllergenes + 2}`)
   const cAllerg = sheet.getCell(`A${rAllergenes}`)
@@ -132,6 +134,7 @@ export async function GET(
     sheet.mergeCells(`D${row}:E${row}`)
     sheet.getCell(`D${row}`).border = BORDURE_FINE
   })
+  const rCoutMatieres = rAllergenes // ligne "Coût matières total HT :", remplie plus bas via formule vers l'onglet Coût de revient
   r = rAllergenes + 4
 
   // ── Temps ──
@@ -230,27 +233,38 @@ export async function GET(
     }
   }
 
-  // ── ★ NOUVEAU EN V2 : Coût de revient ────────────────────────────────────
+  // ─── Onglet 2 : Coût de revient ─────────────────────────────────────────
 
-  let rc = rFin + 3
+  const sheetCout = workbook.addWorksheet(NOM_ONGLET_COUT)
+  sheetCout.columns = [
+    { key: 'A', width: 30 },
+    { key: 'B', width: 10 },
+    { key: 'C', width: 10 },
+    { key: 'D', width: 16 },
+    { key: 'E', width: 12 },
+  ]
 
-  sheet.mergeCells(`C${rc}:G${rc}`)
-  const cTitreCout = sheet.getCell(`C${rc}`)
-  cTitreCout.value = 'COÛT DE REVIENT'
-  cTitreCout.font = { bold: true, size: 12 }
+  let rc = 1
+
+  sheetCout.mergeCells(`A${rc}:E${rc}`)
+  const cTitreCout = sheetCout.getCell(`A${rc}`)
+  cTitreCout.value = `Coût de revient — ${recette.titre}`
+  cTitreCout.font = { bold: true, size: 13 }
   cTitreCout.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } }
-  sheet.getRow(rc).height = 20
-  rc += 1
+  sheetCout.getRow(rc).height = 22
+  rc += 2
 
-  const cNote = sheet.getCell(`C${rc}`)
-  cNote.value = "Ne reste qu'à remplir le prix au kg (ou au litre pour les liquides) de chaque ingrédient — tout le reste se calcule automatiquement."
+  const cNote = sheetCout.getCell(`A${rc}`)
+  cNote.value = "Ne reste qu'à remplir le prix au kg (ou au litre pour les liquides) de chaque ingrédient — tout le reste se calcule automatiquement, y compris le report dans l'onglet Fiche technique."
   cNote.font = { italic: true, size: 9, color: { argb: 'FF666666' } }
+  sheetCout.mergeCells(`A${rc}:E${rc}`)
+  cNote.alignment = { wrapText: true }
   rc += 2
 
   const rEnteteCout = rc
   const entetesCout = ['Ingrédient', 'Unité', 'Quantité', 'Prix au kg / litre', 'Coût']
-  ;(['C', 'D', 'E', 'F', 'G'] as const).forEach((col, i) => {
-    const c = sheet.getCell(`${col}${rEnteteCout}`)
+  ;(['A', 'B', 'C', 'D', 'E'] as const).forEach((col, i) => {
+    const c = sheetCout.getCell(`${col}${rEnteteCout}`)
     c.value = entetesCout[i]
     c.font = { bold: true }
     c.border = { bottom: { style: 'medium' } }
@@ -261,9 +275,9 @@ export async function GET(
   for (const ri of recette.ingredients) {
     const quantiteNum = parserQuantiteNumerique(ri.quantite)
 
-    sheet.getCell(`C${rc}`).value = ri.ingredient.nom
+    sheetCout.getCell(`A${rc}`).value = ri.ingredient.nom
 
-    const cQte = sheet.getCell(`E${rc}`)
+    const cQte = sheetCout.getCell(`C${rc}`)
     if (quantiteNum !== null) {
       cQte.value = quantiteNum
     } else {
@@ -271,9 +285,9 @@ export async function GET(
       cQte.value = ri.quantite || ''
     }
 
-    sheet.getCell(`D${rc}`).value = ri.unite
+    sheetCout.getCell(`B${rc}`).value = ri.unite
 
-    const cPrix = sheet.getCell(`F${rc}`)
+    const cPrix = sheetCout.getCell(`D${rc}`)
     cPrix.numFmt = FORMAT_EUROS
     // volontairement vide : c'est la seule case à remplir à la main
 
@@ -282,13 +296,13 @@ export async function GET(
     // "cl" est divisé par 100, tout le reste (g, ml, pièce…) est divisé par
     // 1000. Corrigez la cellule directement si une ligne ne suit pas cette
     // règle (ex: "pièce").
-    const cCout = sheet.getCell(`G${rc}`)
+    const cCout = sheetCout.getCell(`E${rc}`)
     cCout.numFmt = FORMAT_EUROS
     cCout.value = {
-      formula: `IF(AND(ISNUMBER(E${rc}), F${rc}<>""), IF(OR(LOWER(D${rc})="kg", LOWER(D${rc})="l", LOWER(D${rc})="litre"), E${rc}, IF(LOWER(D${rc})="cl", E${rc}/100, E${rc}/1000)) * F${rc}, "")`,
+      formula: `IF(AND(ISNUMBER(C${rc}), D${rc}<>""), IF(OR(LOWER(B${rc})="kg", LOWER(B${rc})="l", LOWER(B${rc})="litre"), C${rc}, IF(LOWER(B${rc})="cl", C${rc}/100, C${rc}/1000)) * D${rc}, "")`,
     }
 
-    ;['C', 'D', 'E', 'F', 'G'].forEach((col) => { sheet.getCell(`${col}${rc}`).border = BORDURE_FINE })
+    ;['A', 'B', 'C', 'D', 'E'].forEach((col) => { sheetCout.getCell(`${col}${rc}`).border = BORDURE_FINE })
     rc += 1
   }
   const rFinCout = rc - 1
@@ -297,33 +311,38 @@ export async function GET(
 
   // Nombre de portions (pré-rempli depuis la recette si connu, sinon à saisir)
   const rPortions = rc
-  sheet.getCell(`C${rPortions}`).value = 'Nombre de portions'
-  sheet.getCell(`C${rPortions}`).font = { bold: true }
-  const cPortions = sheet.getCell(`D${rPortions}`)
+  sheetCout.getCell(`A${rPortions}`).value = 'Nombre de portions'
+  sheetCout.getCell(`A${rPortions}`).font = { bold: true }
+  const cPortions = sheetCout.getCell(`B${rPortions}`)
   cPortions.value = recette.nb_personnes ?? undefined
   cPortions.border = BORDURE_FINE
   rc += 1
 
   // Coût total matières
   const rTotal = rc
-  sheet.getCell(`C${rTotal}`).value = 'Coût total matières'
-  sheet.getCell(`C${rTotal}`).font = { bold: true }
-  const cTotal = sheet.getCell(`D${rTotal}`)
+  sheetCout.getCell(`A${rTotal}`).value = 'Coût total matières'
+  sheetCout.getCell(`A${rTotal}`).font = { bold: true }
+  const cTotal = sheetCout.getCell(`B${rTotal}`)
   cTotal.numFmt = FORMAT_EUROS
   cTotal.font = { bold: true }
-  cTotal.value = rFinCout >= rDebutCout ? { formula: `SUM(G${rDebutCout}:G${rFinCout})` } : 0
+  cTotal.value = rFinCout >= rDebutCout ? { formula: `SUM(E${rDebutCout}:E${rFinCout})` } : 0
   rc += 1
 
   // Coût par portion
   const rParPortion = rc
-  sheet.getCell(`C${rParPortion}`).value = 'Coût par portion'
-  sheet.getCell(`C${rParPortion}`).font = { bold: true }
-  const cParPortion = sheet.getCell(`D${rParPortion}`)
+  sheetCout.getCell(`A${rParPortion}`).value = 'Coût par portion'
+  sheetCout.getCell(`A${rParPortion}`).font = { bold: true }
+  const cParPortion = sheetCout.getCell(`B${rParPortion}`)
   cParPortion.numFmt = FORMAT_EUROS
   cParPortion.font = { bold: true }
   cParPortion.value = {
-    formula: `IFERROR(D${rTotal}/D${rPortions}, "")`,
+    formula: `IFERROR(B${rTotal}/B${rPortions}, "")`,
   }
+
+  // ── Report automatique du coût total dans l'onglet Fiche technique ──
+  const cCoutMatieresSheet1 = sheet.getCell(`D${rCoutMatieres}`)
+  cCoutMatieresSheet1.numFmt = FORMAT_EUROS
+  cCoutMatieresSheet1.value = { formula: `'${NOM_ONGLET_COUT}'!B${rTotal}` }
 
   const buffer = await workbook.xlsx.writeBuffer()
 
