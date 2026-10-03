@@ -4,6 +4,11 @@ import ExcelJS from 'exceljs'
 import { supabase } from '@/lib/supabase'
 import { mapRecetteAny } from '@/lib/mappers'
 
+// ─── Fiche technique (export Excel) ─────────────────────────────────────────
+// Deux onglets : la fiche technique elle-même (sans aucune notion de prix),
+// et un onglet "Coût de revient" où l'on saisit le prix au kg/L de chaque
+// ingrédient — tout le reste (coût, assaisonnement, marge…) est calculé.
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function formatDuree(min: number | null): string {
@@ -19,12 +24,29 @@ function nomFichier(titre: string): string {
   return `FT_${nettoye}.xlsx`
 }
 
+// Extrait un nombre d'une quantité saisie en texte libre : "200" → 200,
+// "1/2" → 0.5, "1,5" → 1.5. Retourne null si non interprétable (ex: "QS").
+function parserQuantiteNumerique(quantite: string): number | null {
+  const nettoye = quantite.trim().replace(',', '.')
+  const fraction = nettoye.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/)
+  if (fraction) {
+    const num = parseFloat(fraction[1])
+    const den = parseFloat(fraction[2])
+    if (den) return num / den
+  }
+  const val = parseFloat(nettoye)
+  return isNaN(val) ? null : val
+}
+
 const BORDURE_FINE: Partial<ExcelJS.Borders> = {
   top: { style: 'thin', color: { argb: 'FFB0B0B0' } },
   bottom: { style: 'thin', color: { argb: 'FFB0B0B0' } },
   left: { style: 'thin', color: { argb: 'FFB0B0B0' } },
   right: { style: 'thin', color: { argb: 'FFB0B0B0' } },
 }
+
+const FORMAT_EUROS = '#,##0.00" €"'
+const NOM_ONGLET_COUT = 'Coût de revient'
 
 // ─── Route ──────────────────────────────────────────────────────────────────
 
@@ -49,6 +71,8 @@ export async function GET(
   const workbook = new ExcelJS.Workbook()
   workbook.creator = 'Carnet de recettes'
   workbook.created = new Date()
+
+  // ─── Onglet 1 : Fiche technique ─────────────────────────────────────────
 
   const sheet = workbook.addWorksheet('Fiche technique', {
     pageSetup: { fitToPage: true, fitToWidth: 1, fitToHeight: 0, orientation: 'portrait' },
@@ -87,10 +111,9 @@ export async function GET(
     r += 2
   }
 
-  // ── Allergènes + Coût / Coeff / Prix (vides) ──
-  const rAllergenes = r
-  sheet.mergeCells(`A${rAllergenes}:B${rAllergenes + 2}`)
-  const cAllerg = sheet.getCell(`A${rAllergenes}`)
+  // ── Allergènes ──
+  sheet.mergeCells(`A${r}:E${r}`)
+  const cAllerg = sheet.getCell(`A${r}`)
   cAllerg.value = {
     richText: [
       { text: 'Allergènes : ', font: { bold: true, underline: true } },
@@ -98,17 +121,7 @@ export async function GET(
     ],
   }
   cAllerg.alignment = { wrapText: true, vertical: 'top' }
-
-  const champsCout = ['Coût matières total HT :', 'Coeff multiplicateur', 'Prix de vente / Portion HT']
-  champsCout.forEach((label, i) => {
-    const row = rAllergenes + i
-    const cLabel = sheet.getCell(`C${row}`)
-    cLabel.value = label
-    cLabel.font = { bold: true, underline: true }
-    sheet.mergeCells(`D${row}:E${row}`)
-    sheet.getCell(`D${row}`).border = BORDURE_FINE
-  })
-  r = rAllergenes + 4
+  r += 2
 
   // ── Temps ──
   const temps: [string, string][] = [
@@ -205,6 +218,133 @@ export async function GET(
       ;['C', 'D', 'E'].forEach((col) => { sheet.getCell(`${col}${row}`).border = BORDURE_FINE })
     }
   }
+
+  // ─── Onglet 2 : Coût de revient ─────────────────────────────────────────
+
+  const sheetCout = workbook.addWorksheet(NOM_ONGLET_COUT)
+  sheetCout.columns = [
+    { key: 'A', width: 30 },
+    { key: 'B', width: 10 },
+    { key: 'C', width: 10 },
+    { key: 'D', width: 16 },
+    { key: 'E', width: 12 },
+  ]
+
+  let rc = 1
+
+  sheetCout.mergeCells(`A${rc}:E${rc}`)
+  const cTitreCout = sheetCout.getCell(`A${rc}`)
+  cTitreCout.value = `Coût de revient — ${recette.titre}`
+  cTitreCout.font = { bold: true, size: 13 }
+  cTitreCout.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } }
+  sheetCout.getRow(rc).height = 22
+  rc += 2
+
+  const cNote = sheetCout.getCell(`A${rc}`)
+  cNote.value = "Ne reste qu'à remplir le prix au kg (ou au litre pour les liquides) de chaque ingrédient — tout le reste se calcule automatiquement. Le prix de vente se saisit dans la synthèse en bas."
+  cNote.font = { italic: true, size: 9, color: { argb: 'FF666666' } }
+  sheetCout.mergeCells(`A${rc}:E${rc}`)
+  cNote.alignment = { wrapText: true }
+  rc += 2
+
+  const rEnteteCout = rc
+  const entetesCout = ['Ingrédient', 'Unité', 'Quantité', 'Prix au kg / litre', 'Coût']
+  ;(['A', 'B', 'C', 'D', 'E'] as const).forEach((col, i) => {
+    const c = sheetCout.getCell(`${col}${rEnteteCout}`)
+    c.value = entetesCout[i]
+    c.font = { bold: true }
+    c.border = { bottom: { style: 'medium' } }
+  })
+  rc += 1
+
+  const rDebutCout = rc
+  for (const ri of recette.ingredients) {
+    const quantiteNum = parserQuantiteNumerique(ri.quantite)
+
+    sheetCout.getCell(`A${rc}`).value = ri.ingredient.nom
+
+    const cQte = sheetCout.getCell(`C${rc}`)
+    if (quantiteNum !== null) {
+      cQte.value = quantiteNum
+    } else {
+      cQte.numFmt = '@'
+      cQte.value = ri.quantite || ''
+    }
+
+    sheetCout.getCell(`B${rc}`).value = ri.unite
+
+    const cPrix = sheetCout.getCell(`D${rc}`)
+    cPrix.numFmt = FORMAT_EUROS
+    // volontairement vide : c'est la seule case à remplir à la main
+
+    // Coût = (quantité convertie en kg ou en litre) × prix au kg/litre.
+    // "kg" et "l"/"litre" restent tels quels (déjà dans la bonne unité),
+    // "cl" est divisé par 100, tout le reste (g, ml, pièce…) est divisé par
+    // 1000. Corrigez la cellule directement si une ligne ne suit pas cette
+    // règle (ex: "pièce").
+    const cCout = sheetCout.getCell(`E${rc}`)
+    cCout.numFmt = FORMAT_EUROS
+    cCout.value = {
+      formula: `IF(AND(ISNUMBER(C${rc}), D${rc}<>""), IF(OR(LOWER(B${rc})="kg", LOWER(B${rc})="l", LOWER(B${rc})="litre"), C${rc}, IF(LOWER(B${rc})="cl", C${rc}/100, C${rc}/1000)) * D${rc}, "")`,
+    }
+
+    ;['A', 'B', 'C', 'D', 'E'].forEach((col) => { sheetCout.getCell(`${col}${rc}`).border = BORDURE_FINE })
+    rc += 1
+  }
+  const rFinCout = rc - 1
+
+  rc += 1
+
+  function ligneSynthese(label: string, opts?: { gras?: boolean }): { row: number; cellule: ExcelJS.Cell } {
+    const row = rc
+    const cLabel = sheetCout.getCell(`A${row}`)
+    cLabel.value = label
+    cLabel.font = { bold: opts?.gras ?? true }
+    const cellule = sheetCout.getCell(`B${row}`)
+    cellule.border = BORDURE_FINE
+    cellule.font = { bold: opts?.gras ?? true }
+    rc += 1
+    return { row, cellule }
+  }
+
+  // Nombre de portions (pré-rempli depuis la recette si connu, sinon à saisir)
+  const { row: rPortions, cellule: cPortions } = ligneSynthese('Nombre de portions')
+  cPortions.value = recette.nb_personnes ?? undefined
+
+  // Coût total matières premières
+  const { row: rTotalMP, cellule: cTotalMP } = ligneSynthese('Coût total matières premières')
+  cTotalMP.numFmt = FORMAT_EUROS
+  cTotalMP.value = rFinCout >= rDebutCout ? { formula: `SUM(E${rDebutCout}:E${rFinCout})` } : 0
+
+  // Coefficient assaisonnement (par défaut 5 %, modifiable)
+  const { row: rCoeffAssaisonnement, cellule: cCoeffAssaisonnement } = ligneSynthese('Coefficient assaisonnement')
+  cCoeffAssaisonnement.numFmt = '0%'
+  cCoeffAssaisonnement.value = 0.05
+
+  // Coût avec l'assaisonnement
+  const { row: rCoutAssaisonne, cellule: cCoutAssaisonne } = ligneSynthese("Coût avec l'assaisonnement")
+  cCoutAssaisonne.numFmt = FORMAT_EUROS
+  cCoutAssaisonne.value = { formula: `B${rTotalMP}*(1+B${rCoeffAssaisonnement})` }
+
+  // Coût par portion
+  const { row: rCoutParPortion, cellule: cCoutParPortion } = ligneSynthese('Coût par portion')
+  cCoutParPortion.numFmt = FORMAT_EUROS
+  cCoutParPortion.value = { formula: `IFERROR(B${rCoutAssaisonne}/B${rPortions}, "")` }
+
+  // Prix de vente (par portion, à saisir)
+  const { row: rPrixVente, cellule: cPrixVente } = ligneSynthese('Prix de vente')
+  cPrixVente.numFmt = FORMAT_EUROS
+  // volontairement vide : à saisir à la main
+
+  // Marge = prix de vente - coût par portion
+  const { row: rMarge, cellule: cMarge } = ligneSynthese('Marge')
+  cMarge.numFmt = FORMAT_EUROS
+  cMarge.value = { formula: `IF(B${rPrixVente}<>"", B${rPrixVente}-B${rCoutParPortion}, "")` }
+
+  // Marge en %
+  const { cellule: cMargePct } = ligneSynthese('Marge en %')
+  cMargePct.numFmt = '0.0%'
+  cMargePct.value = { formula: `IFERROR(B${rMarge}/B${rPrixVente}, "")` }
 
   const buffer = await workbook.xlsx.writeBuffer()
 
