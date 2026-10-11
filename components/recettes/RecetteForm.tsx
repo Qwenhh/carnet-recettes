@@ -140,16 +140,28 @@ function SectionTitre({ children }: { children: React.ReactNode }) {
   )
 }
 
-function SectionDivider({ nom, onRename, onDelete, showDelete }: {
+function SectionDivider({ nom, onRename, onDelete, showDelete, onDragStart, onDragEnd }: {
   nom: string
   onRename: (val: string) => void
   onDelete: () => void
   showDelete: boolean
+  onDragStart?: () => void
+  onDragEnd?: () => void
 }) {
   return (
     <div className="flex items-center gap-2">
       <div className="h-px flex-1 bg-border" />
       <div className="flex items-center gap-1">
+        {onDragStart && (
+          <span
+            draggable
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            className="shrink-0 cursor-grab touch-none active:cursor-grabbing"
+          >
+            <GripVerticalIcon className="size-4 text-muted-foreground" />
+          </span>
+        )}
         <Input
           value={nom}
           onChange={(e) => onRename(e.target.value)}
@@ -185,6 +197,7 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
   const [sectionActive, setSectionActive] = React.useState<number>(0)
   const [ingredientEnDrag, setIngredientEnDrag] = React.useState<{ si: number; ii: number } | null>(null)
   const [etapeEnDrag, setEtapeEnDrag] = React.useState<{ si: number; ei: number } | null>(null)
+  const [sectionEtapesEnDrag, setSectionEtapesEnDrag] = React.useState<number | null>(null)
 
   // ─── Photo ───────────────────────────────────────────────────────────────
   const [photoFile, setPhotoFile] = React.useState<File | null>(null)
@@ -439,6 +452,14 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
     set('etapes_sections', form.etapes_sections.map((sec, i) =>
       i === si ? { ...sec, etapes: sec.etapes.filter((_, j) => j !== ei) } : sec
     ))
+  }
+
+  function reordonnerEtapeSection(depuis: number, vers: number) {
+    if (depuis === vers) return
+    const sections = [...form.etapes_sections]
+    const [deplacee] = sections.splice(depuis, 1)
+    sections.splice(vers, 0, deplacee)
+    set('etapes_sections', sections)
   }
 
   function reordonnerEtape(si: number, depuis: number, vers: number) {
@@ -818,7 +839,19 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
         <SectionTitre>Préparation</SectionTitre>
         <div className="space-y-8">
           {form.etapes_sections.map((section, si) => (
-            <div key={si} className="space-y-3">
+            <div
+              key={si}
+              className={`space-y-3 transition-opacity ${sectionEtapesEnDrag === si ? 'opacity-40' : ''}`}
+              onDragOver={(e) => { if (sectionEtapesEnDrag !== null) e.preventDefault() }}
+              onDrop={(e) => {
+                // Les dépôts d'étapes remontent aussi jusqu'ici : on ne réagit
+                // que si c'est bien une section qui est en cours de déplacement
+                if (sectionEtapesEnDrag === null) return
+                e.preventDefault()
+                reordonnerEtapeSection(sectionEtapesEnDrag, si)
+                setSectionEtapesEnDrag(null)
+              }}
+            >
               {/* En-tête de section (affiché dès qu'il y en a plusieurs) */}
               {form.etapes_sections.length > 1 && (
                 <SectionDivider
@@ -826,6 +859,8 @@ export function RecetteForm({ recette }: { recette?: Recette }) {
                   onRename={(v) => renommerEtapeSection(si, v)}
                   onDelete={() => supprimerEtapeSection(si)}
                   showDelete={form.etapes_sections.length > 1}
+                  onDragStart={() => setSectionEtapesEnDrag(si)}
+                  onDragEnd={() => setSectionEtapesEnDrag(null)}
                 />
               )}
 
