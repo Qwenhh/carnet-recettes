@@ -72,9 +72,16 @@ const AUCUNE_BORDURE_TABLE = {
 
 // ─── Estimation de la hauteur ───────────────────────────────────────────────
 
-interface SectionIngredients {
-  nom: string
-  items: string[]
+// Liste à plat : sans doublons (même nom à la casse et aux accents près,
+// la première écriture est conservée) et triée par ordre alphabétique
+function listerIngredients(noms: string[]): string[] {
+  const parCle = new Map<string, string>()
+  for (const brut of noms) {
+    const nom = brut.trim()
+    const cle = nom.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    if (cle && !parCle.has(cle)) parCle.set(cle, nom)
+  }
+  return Array.from(parCle.values()).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
 }
 
 function nbLignes(texte: string, largeurPt: number, fs: number, facteurLargeur = 0.55): number {
@@ -97,35 +104,22 @@ function repartir<T>(items: T[], colonnes: number): T[][] {
   return resultat
 }
 
-function hauteurIngredients(
-  sections: SectionIngredients[],
-  sousTitres: boolean,
-  fs: number,
-  colonnes: number
-): number {
+function hauteurIngredients(ingredients: string[], fs: number, colonnes: number): number {
   const largeurTexte = LARGEUR_UTILE_PT / colonnes - RETRAIT_TIRET_PT - 8
-  let h = 0
-  sections.forEach((section, i) => {
-    if (sousTitres && section.nom) {
-      h += (i === 0 ? 0 : 9) + (fs + 0.5) * INTERLIGNE + 3
-    }
-    const parColonne = repartir(section.items, colonnes)
-    const maxLignes = Math.max(
-      0,
-      ...parColonne.map((col) => col.reduce((somme, item) => somme + nbLignes(item, largeurTexte, fs), 0))
-    )
-    h += maxLignes * fs * INTERLIGNE
-  })
-  return h
+  const parColonne = repartir(ingredients, colonnes)
+  const maxLignes = Math.max(
+    0,
+    ...parColonne.map((col) => col.reduce((somme, item) => somme + nbLignes(item, largeurTexte, fs), 0))
+  )
+  return maxLignes * fs * INTERLIGNE
 }
 
 function choisirMiseEnPage(params: {
-  sections: SectionIngredients[]
-  sousTitres: boolean
+  ingredients: string[]
   titre: string
   texteAllergenes: string
 }) {
-  const { sections, sousTitres, titre, texteAllergenes } = params
+  const { ingredients, titre, texteAllergenes } = params
 
   // Titre : on réduit la taille s'il prendrait plus de 3 lignes
   let fsTitre = TAILLES_TITRE[TAILLES_TITRE.length - 1]
@@ -146,7 +140,7 @@ function choisirMiseEnPage(params: {
   for (const fs of TAILLES_INGREDIENTS) {
     const colonnesPossibles = fs > 10 ? [1, 2] : [1, 2, 3]
     for (const colonnes of colonnesPossibles) {
-      if (fixe + hauteurIngredients(sections, sousTitres, fs, colonnes) <= HAUTEUR_MAX_PT) {
+      if (fixe + hauteurIngredients(ingredients, fs, colonnes) <= HAUTEUR_MAX_PT) {
         return { fsTitre, fsIngredients: fs, colonnes }
       }
     }
@@ -227,23 +221,14 @@ export async function GET(
 
   const recette = mapRecetteAny(data)
 
-  // Ingrédients groupés par section, dans l'ordre d'apparition
-  const parGroupe = new Map<string, string[]>()
-  for (const ri of recette.ingredients) {
-    const g = ri.groupe ?? ''
-    if (!parGroupe.has(g)) parGroupe.set(g, [])
-    parGroupe.get(g)!.push(ri.ingredient.nom)
-  }
-  const sections: SectionIngredients[] = Array.from(parGroupe.entries()).map(([nom, items]) => ({ nom, items }))
-  const sousTitres = sections.some((s) => s.nom) && sections.length > 1
+  const ingredients = listerIngredients(recette.ingredients.map((ri) => ri.ingredient.nom))
 
   const texteAllergenes = recette.allergenes.length > 0
     ? recette.allergenes.join(', ')
     : 'Aucun allergène renseigné'
 
   const { fsTitre, fsIngredients, colonnes } = choisirMiseEnPage({
-    sections,
-    sousTitres,
+    ingredients,
     titre: recette.titre,
     texteAllergenes,
   })
@@ -286,57 +271,37 @@ export async function GET(
     ],
   })
 
-  // ── Liste des ingrédients, section par section ──
+  // ── Liste des ingrédients (une seule liste, en colonnes si besoin) ──
   const largeursIngredients = largeursEgales(colonnes)
-  const blocsIngredients: (Paragraph | Table)[] = []
 
-  if (sections.length === 0) {
-    blocsIngredients.push(
-      new Paragraph({
-        indent: { left: MARGE_TW, right: MARGE_TW },
-        children: [new TextRun({ text: 'Aucun ingrédient renseigné', italics: true, size: Math.round(fsIngredients * 2) })],
-      })
-    )
-  }
-
-  sections.forEach((section, i) => {
-    if (sousTitres && section.nom) {
-      blocsIngredients.push(
-        new Paragraph({
+  const listeIngredients =
+    ingredients.length === 0
+      ? new Paragraph({
           indent: { left: MARGE_TW, right: MARGE_TW },
-          spacing: {
-            before: i === 0 ? 0 : pt(9),
-            after: pt(3),
-            line: pt((fsIngredients + 0.5) * INTERLIGNE),
-            lineRule: LineRuleType.EXACT,
-          },
-          children: [new TextRun({ text: section.nom, bold: true, size: Math.round((fsIngredients + 0.5) * 2) })],
+          children: [new TextRun({ text: 'Aucun ingrédient renseigné', italics: true, size: Math.round(fsIngredients * 2) })],
         })
-      )
-    }
-
-    const cellules = repartir(section.items, colonnes).map(
-      (colonne, c) =>
-        new TableCell({
-          width: { size: largeursIngredients[c], type: WidthType.DXA },
-          borders: AUCUNE_BORDURE,
-          margins: { top: 0, bottom: 0, left: 0, right: pt(8) },
-          children:
-            colonne.length > 0
-              ? colonne.map(
-                  (nom) =>
-                    new Paragraph({
-                      numbering: { reference: 'tirets', level: 0 },
-                      spacing: { before: 0, after: 0, line: pt(fsIngredients * INTERLIGNE), lineRule: LineRuleType.EXACT },
-                      children: [new TextRun({ text: nom, size: Math.round(fsIngredients * 2) })],
-                    })
-                )
-              : [new Paragraph({ children: [] })],
-        })
-    )
-
-    blocsIngredients.push(tableauAvecMarges(largeursIngredients, cellules))
-  })
+      : tableauAvecMarges(
+          largeursIngredients,
+          repartir(ingredients, colonnes).map(
+            (colonne, c) =>
+              new TableCell({
+                width: { size: largeursIngredients[c], type: WidthType.DXA },
+                borders: AUCUNE_BORDURE,
+                margins: { top: 0, bottom: 0, left: 0, right: pt(8) },
+                children:
+                  colonne.length > 0
+                    ? colonne.map(
+                        (nom) =>
+                          new Paragraph({
+                            numbering: { reference: 'tirets', level: 0 },
+                            spacing: { before: 0, after: 0, line: pt(fsIngredients * INTERLIGNE), lineRule: LineRuleType.EXACT },
+                            children: [new TextRun({ text: nom, size: Math.round(fsIngredients * 2) })],
+                          })
+                      )
+                    : [new Paragraph({ children: [] })],
+              })
+          )
+        )
 
   // ── Encadré des allergènes ──
   const encadreAllergenes = tableauAvecMarges(
@@ -390,7 +355,7 @@ export async function GET(
           bandeau,
           espace(26),
           libelle('INGRÉDIENTS'),
-          ...blocsIngredients,
+          listeIngredients,
           espace(20),
           libelle('ALLERGÈNES'),
           encadreAllergenes,
