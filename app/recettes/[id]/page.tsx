@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ClockIcon, UsersIcon, PencilIcon, ArrowLeftIcon, PrinterIcon, CheckCircle2Icon } from 'lucide-react'
+import { ClockIcon, UsersIcon, PencilIcon, ArrowLeftIcon, PrinterIcon, FileTextIcon, CheckCircle2Icon } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
 import { mapRecetteAny } from '@/lib/mappers'
@@ -72,6 +72,10 @@ export default async function PageDetail({
           <Button variant="outline" size="sm" render={<a href={`/api/recettes/${id}/fiche-technique`} download />}>
             <PrinterIcon className="size-4" />
             Fiche technique
+          </Button>
+          <Button variant="outline" size="sm" render={<a href={`/api/recettes/${id}/fiche-ingredients`} download />}>
+            <FileTextIcon className="size-4" />
+            Fiche ingrédients
           </Button>
           <Button variant="outline" size="sm" render={<Link href={`/recettes/${id}/modifier`} />}>
             <PencilIcon className="size-4" />
